@@ -32,6 +32,15 @@
         }
       }
     },
+    "dataPoint": {
+      "displayName": "Series Colors",
+      "properties": {
+        "fill": {
+          "displayName": "Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        }
+      }
+    },
     "dataLabels": {
       "displayName": "Data Labels",
       "properties": {
