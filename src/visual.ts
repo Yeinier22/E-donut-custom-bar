@@ -156,12 +156,14 @@ export class Visual implements powerbi.extensibility.IVisual {
       return;
     }
 
+  const showYGrid = (dataView.metadata?.objects as any)?.yAxis?.showGridlines ?? true;
+
     const option: echarts.EChartsCoreOption = {
       tooltip: { trigger: "axis" },
       legend: { top: "5%", data: legendNames },
       grid: { left: "3%", right: "4%", bottom: "3%", containLabel: true },
       xAxis: { type: "category", data: categories },
-      yAxis: { type: "value" },
+      yAxis: { type: "value", splitLine: { show: showYGrid } },
       series: seriesData,
     };
 
@@ -224,6 +226,18 @@ export class Visual implements powerbi.extensibility.IVisual {
           pushInstance(name);
         });
       }
+    }
+
+    if (options.objectName === "yAxis") {
+      const show = (this.dataView?.metadata?.objects as any)?.yAxis?.showGridlines ?? true;
+      enumeration.push({
+        objectName: "yAxis",
+        displayName: "Y Axis",
+        properties: {
+          showGridlines: !!show
+        },
+        selector: undefined as any
+      });
     }
     return enumeration;
   }

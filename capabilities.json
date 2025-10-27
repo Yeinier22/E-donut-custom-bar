@@ -49,6 +49,15 @@
           "type": { "bool": true }
         }
       }
+    },
+    "yAxis": {
+      "displayName": "Y Axis",
+      "properties": {
+        "showGridlines": {
+          "displayName": "Show Gridlines",
+          "type": { "bool": true }
+        }
+      }
     }
   },
   "privileges": []
