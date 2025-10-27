@@ -156,14 +156,80 @@ export class Visual implements powerbi.extensibility.IVisual {
       return;
     }
 
-  const showYGrid = (dataView.metadata?.objects as any)?.yAxis?.showGridlines ?? true;
+  const xAxisSettings: any = (dataView.metadata?.objects as any)?.xAxis || {};
+  const yAxisSettings: any = (dataView.metadata?.objects as any)?.yAxis || {};
+  // X Axis toggles
+  const showXLabels: boolean = xAxisSettings["showLabels"] !== false; // default true
+  let showXGridLines: boolean;
+  if (typeof xAxisSettings["showGridLines"] === "boolean") {
+    showXGridLines = xAxisSettings["showGridLines"];
+  } else {
+    showXGridLines = false; // default off for vertical grid lines to avoid clutter
+  }
+  // Y Axis toggles
+  const showYLabels: boolean = yAxisSettings["showLabels"] !== false; // default true
+  let showYGridLines: boolean;
+  if (typeof yAxisSettings["showGridLines"] === "boolean") {
+    showYGridLines = yAxisSettings["showGridLines"];
+  } else if (typeof yAxisSettings["showGridlines"] === "boolean") {
+    // legacy compatibility
+    showYGridLines = yAxisSettings["showGridlines"];
+  } else {
+    showYGridLines = true; // horizontal grid lines on by default
+  }
+
+  const legendSettings: any = (dataView.metadata?.objects as any)?.legend || {};
+  const legendPosition: string = legendSettings["position"] || "top";
+  const legendAlignment: string = legendSettings["alignment"] || "center"; // left | center | right
+  const legendIconSetting: string = legendSettings["iconShape"] || "rect";
+  const legendIcon: string = legendIconSetting === "square" ? "rect" : legendIconSetting;
+
+  // Compute legend placement
+  const isVertical = (legendPosition === "left" || legendPosition === "right");
+  let legendTop: any = undefined;
+  let legendBottom: any = undefined;
+  let legendLeft: any = undefined;
+  let legendRight: any = undefined;
+
+  if (legendPosition === "top" || legendPosition === "bottom") {
+    // Use alignment for horizontal positions
+    if (legendPosition === "top") legendTop = "5%"; else legendBottom = "5%";
+    if (legendAlignment === "left") legendLeft = "2%";
+    else if (legendAlignment === "right") legendRight = "2%";
+    else legendLeft = "center"; // center
+  } else if (legendPosition === "left") {
+    legendLeft = "2%";
+    legendTop = "5%";
+  } else if (legendPosition === "right") {
+    legendRight = "2%";
+    legendTop = "5%";
+  } else if (legendPosition === "topCenter" || legendPosition === "bottomCenter") {
+    // Back-compat for previous centered options
+    if (legendPosition === "topCenter") legendTop = "5%"; else legendBottom = "5%";
+    legendLeft = "center";
+  } else if (legendPosition === "bottomRight") {
+    legendBottom = "5%";
+    legendRight = "2%";
+  }
 
     const option: echarts.EChartsCoreOption = {
       tooltip: { trigger: "axis" },
-      legend: { top: "5%", data: legendNames },
+      legend: {
+        type: "plain",
+        orient: isVertical ? "vertical" : "horizontal",
+        top: legendTop,
+        bottom: legendBottom,
+        left: legendLeft,
+        right: legendRight,
+        icon: legendIcon,
+        itemWidth: 14,
+        itemHeight: 14,
+        textStyle: { fontSize: 12 },
+        data: legendNames
+      },
       grid: { left: "3%", right: "4%", bottom: "3%", containLabel: true },
-      xAxis: { type: "category", data: categories },
-      yAxis: { type: "value", splitLine: { show: showYGrid } },
+      xAxis: { type: "category", data: categories, axisLabel: { show: showXLabels }, splitLine: { show: showXGridLines } },
+      yAxis: { type: "value", axisLabel: { show: showYLabels }, splitLine: { show: showYGridLines } },
       series: seriesData,
     };
 
@@ -186,7 +252,7 @@ export class Visual implements powerbi.extensibility.IVisual {
     options: powerbi.EnumerateVisualObjectInstancesOptions
   ): powerbi.VisualObjectInstanceEnumeration {
     const enumeration: powerbi.VisualObjectInstance[] = [];
-    if (options.objectName === "dataPoint") {
+  if (options.objectName === "dataPoint") {
       const categorical = this.dataView?.categorical;
       const valuesCols: any = categorical?.values || [];
       const groups = valuesCols?.grouped?.() as any[] | undefined;
@@ -229,12 +295,41 @@ export class Visual implements powerbi.extensibility.IVisual {
     }
 
     if (options.objectName === "yAxis") {
-      const show = (this.dataView?.metadata?.objects as any)?.yAxis?.showGridlines ?? true;
       enumeration.push({
         objectName: "yAxis",
         displayName: "Y Axis",
         properties: {
-          showGridlines: !!show
+          showLabels: (this.dataView?.metadata?.objects as any)?.yAxis?.showLabels !== false,
+          showGridLines: (this.dataView?.metadata?.objects as any)?.yAxis?.showGridLines !== false
+        },
+        selector: undefined as any
+      });
+    }
+
+    if (options.objectName === "xAxis") {
+      enumeration.push({
+        objectName: "xAxis",
+        displayName: "X Axis",
+        properties: {
+          showLabels: (this.dataView?.metadata?.objects as any)?.xAxis?.showLabels !== false,
+          showGridLines: (this.dataView?.metadata?.objects as any)?.xAxis?.showGridLines === true
+        },
+        selector: undefined as any
+      });
+    }
+
+    if (options.objectName === "legend") {
+      const objects: any = this.dataView?.metadata?.objects || {};
+      const position = objects?.legend?.position || "top";
+      const alignment = objects?.legend?.alignment || "center";
+      const iconShape = objects?.legend?.iconShape || "rect";
+      enumeration.push({
+        objectName: "legend",
+        displayName: "Legend",
+        properties: {
+          position,
+          alignment,
+          iconShape
         },
         selector: undefined as any
       });
@@ -245,4 +340,6 @@ export class Visual implements powerbi.extensibility.IVisual {
   public destroy() {
     this.chartInstance.dispose();
   }
+
 }
+

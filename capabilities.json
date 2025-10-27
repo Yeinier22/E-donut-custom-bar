@@ -2,19 +2,23 @@
   "dataRoles": [
     { "name": "category", "kind": "Grouping", "displayName": "Category" },
     { "name": "legend", "kind": "Grouping", "displayName": "Legend" },
-    { "name": "series", "kind": "Measure", "displayName": "Series" }
+    { "name": "series", "kind": "GroupingOrMeasure", "displayName": "Series" }
   ],
   "dataViewMappings": [
     {
       "categorical": {
         "categories": {
-          "for": { "in": "category" },
+          "select": [
+            { "for": { "in": "category" } }
+          ],
           "dataReductionAlgorithm": { "top": {} }
         },
         "values": {
           "group": {
             "by": "legend",
-            "select": [{ "for": { "in": "series" } }],
+            "select": [
+              { "bind": { "to": "series" } }
+            ],
             "dataReductionAlgorithm": { "top": {} }
           }
         }
@@ -23,17 +27,8 @@
   ],
   "supportsHighlight": true,
   "objects": {
-    "dataColors": {
-      "displayName": "Data Colors",
-      "properties": {
-        "fill": {
-          "displayName": "Color",
-          "type": { "fill": { "solid": { "color": true } } }
-        }
-      }
-    },
     "dataPoint": {
-      "displayName": "Series Colors",
+      "displayName": "Data colors",
       "properties": {
         "fill": {
           "displayName": "Color",
@@ -50,12 +45,65 @@
         }
       }
     },
+    "xAxis": {
+      "displayName": "X Axis",
+      "properties": {
+        "showLabels": {
+          "displayName": "Show Labels",
+          "type": { "bool": true }
+        },
+        "showGridLines": {
+          "displayName": "Show Grid Lines",
+          "type": { "bool": true }
+        }
+      }
+    },
     "yAxis": {
       "displayName": "Y Axis",
       "properties": {
-        "showGridlines": {
-          "displayName": "Show Gridlines",
+        "showLabels": {
+          "displayName": "Show Labels",
           "type": { "bool": true }
+        },
+        "showGridLines": {
+          "displayName": "Show Grid Lines",
+          "type": { "bool": true }
+        }
+      }
+    },
+    "legend": {
+      "displayName": "Legend",
+      "properties": {
+        "position": {
+          "displayName": "Position",
+          "type": {
+            "enumeration": [
+              { "displayName": "Top", "value": "top" },
+              { "displayName": "Bottom", "value": "bottom" },
+              { "displayName": "Left", "value": "left" },
+              { "displayName": "Right", "value": "right" }
+            ]
+          }
+        },
+        "alignment": {
+          "displayName": "Alignment",
+          "type": {
+            "enumeration": [
+              { "displayName": "Left", "value": "left" },
+              { "displayName": "Center", "value": "center" },
+              { "displayName": "Right", "value": "right" }
+            ]
+          }
+        },
+        "iconShape": {
+          "displayName": "Icon Shape",
+          "type": {
+            "enumeration": [
+              { "displayName": "Rectangle", "value": "rect" },
+              { "displayName": "Square", "value": "square" },
+              { "displayName": "Circle", "value": "circle" }
+            ]
+          }
         }
       }
     }
