@@ -159,6 +159,7 @@ export class Visual implements powerbi.extensibility.IVisual {
   const xAxisSettings: any = (dataView.metadata?.objects as any)?.xAxis || {};
   const yAxisSettings: any = (dataView.metadata?.objects as any)?.yAxis || {};
   // X Axis toggles
+  const showXAxisLine: boolean = xAxisSettings["showAxisLine"] !== false; // default true
   const showXLabels: boolean = xAxisSettings["showLabels"] !== false; // default true
   let showXGridLines: boolean;
   if (typeof xAxisSettings["showGridLines"] === "boolean") {
@@ -228,7 +229,7 @@ export class Visual implements powerbi.extensibility.IVisual {
         data: legendNames
       },
       grid: { left: "3%", right: "4%", bottom: "3%", containLabel: true },
-      xAxis: { type: "category", data: categories, axisLabel: { show: showXLabels }, splitLine: { show: showXGridLines } },
+      xAxis: { type: "category", data: categories, axisLine: { show: showXAxisLine }, axisTick: { show: false }, axisLabel: { show: showXLabels }, splitLine: { show: showXGridLines } },
       yAxis: { type: "value", axisLabel: { show: showYLabels }, splitLine: { show: showYGridLines } },
       series: seriesData,
     };
@@ -311,6 +312,7 @@ export class Visual implements powerbi.extensibility.IVisual {
         objectName: "xAxis",
         displayName: "X Axis",
         properties: {
+          showAxisLine: (this.dataView?.metadata?.objects as any)?.xAxis?.showAxisLine !== false,
           showLabels: (this.dataView?.metadata?.objects as any)?.xAxis?.showLabels !== false,
           showGridLines: (this.dataView?.metadata?.objects as any)?.xAxis?.showGridLines === true
         },

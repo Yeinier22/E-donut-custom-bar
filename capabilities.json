@@ -48,6 +48,10 @@
     "xAxis": {
       "displayName": "X Axis",
       "properties": {
+        "showAxisLine": {
+          "displayName": "Show Axis Line",
+          "type": { "bool": true }
+        },
         "showLabels": {
           "displayName": "Show Labels",
           "type": { "bool": true }
