@@ -59,6 +59,33 @@
         "showGridLines": {
           "displayName": "Show Grid Lines",
           "type": { "bool": true }
+        },
+        "labelColor": {
+          "displayName": "Label Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "labelSize": {
+          "displayName": "Label Font Size",
+          "type": { "formatting": { "fontSize": true } }
+        },
+        "rotateLabels": {
+          "displayName": "Rotate Labels (degrees)",
+          "type": { "numeric": true }
+        },
+        "fontFamily": {
+          "displayName": "Font Family",
+          "type": { "formatting": { "fontFamily": true } }
+        },
+        "fontStyle": {
+          "displayName": "Font Style",
+          "type": {
+            "enumeration": [
+              { "displayName": "Regular", "value": "regular" },
+              { "displayName": "Bold", "value": "bold" },
+              { "displayName": "Italic", "value": "italic" },
+              { "displayName": "Bold and italic", "value": "boldItalic" }
+            ]
+          }
         }
       }
     },
@@ -72,6 +99,29 @@
         "showGridLines": {
           "displayName": "Show Grid Lines",
           "type": { "bool": true }
+        },
+        "labelColor": {
+          "displayName": "Label Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "labelSize": {
+          "displayName": "Label Font Size",
+          "type": { "formatting": { "fontSize": true } }
+        },
+        "fontFamily": {
+          "displayName": "Font Family",
+          "type": { "formatting": { "fontFamily": true } }
+        },
+        "fontStyle": {
+          "displayName": "Font Style",
+          "type": {
+            "enumeration": [
+              { "displayName": "Regular", "value": "regular" },
+              { "displayName": "Bold", "value": "bold" },
+              { "displayName": "Italic", "value": "italic" },
+              { "displayName": "Bold and italic", "value": "boldItalic" }
+            ]
+          }
         }
       }
     },

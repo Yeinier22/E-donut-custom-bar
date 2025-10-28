@@ -161,6 +161,13 @@ export class Visual implements powerbi.extensibility.IVisual {
   // X Axis toggles
   const showXAxisLine: boolean = xAxisSettings["showAxisLine"] !== false; // default true
   const showXLabels: boolean = xAxisSettings["showLabels"] !== false; // default true
+  const xLabelColor: string = (xAxisSettings["labelColor"] as any)?.solid?.color || "#666666";
+  const xLabelSize: number = (typeof xAxisSettings["labelSize"] === "number" ? xAxisSettings["labelSize"] : 12);
+  const xRotateLabels: number = (typeof xAxisSettings["rotateLabels"] === "number" ? xAxisSettings["rotateLabels"] : 0);
+  const xFontFamily: string = (xAxisSettings["fontFamily"] as string) || "Segoe UI, sans-serif";
+  const xFontStyleSetting: string = (xAxisSettings["fontStyle"] as string) || "regular"; // regular|bold|italic|boldItalic
+  const xFontWeight: any = (xFontStyleSetting === "bold" || xFontStyleSetting === "boldItalic") ? "bold" : "normal";
+  const xFontStyle: any = (xFontStyleSetting === "italic" || xFontStyleSetting === "boldItalic") ? "italic" : "normal";
   let showXGridLines: boolean;
   if (typeof xAxisSettings["showGridLines"] === "boolean") {
     showXGridLines = xAxisSettings["showGridLines"];
@@ -169,6 +176,12 @@ export class Visual implements powerbi.extensibility.IVisual {
   }
   // Y Axis toggles
   const showYLabels: boolean = yAxisSettings["showLabels"] !== false; // default true
+  const yLabelColor: string = (yAxisSettings["labelColor"] as any)?.solid?.color || "#666666";
+  const yLabelSize: number = (typeof yAxisSettings["labelSize"] === "number" ? yAxisSettings["labelSize"] : 12);
+  const yFontFamily: string = (yAxisSettings["fontFamily"] as string) || "Segoe UI, sans-serif";
+  const yFontStyleSetting: string = (yAxisSettings["fontStyle"] as string) || "regular";
+  const yFontWeight: any = (yFontStyleSetting === "bold" || yFontStyleSetting === "boldItalic") ? "bold" : "normal";
+  const yFontStyle: any = (yFontStyleSetting === "italic" || yFontStyleSetting === "boldItalic") ? "italic" : "normal";
   let showYGridLines: boolean;
   if (typeof yAxisSettings["showGridLines"] === "boolean") {
     showYGridLines = yAxisSettings["showGridLines"];
@@ -229,8 +242,36 @@ export class Visual implements powerbi.extensibility.IVisual {
         data: legendNames
       },
       grid: { left: "3%", right: "4%", bottom: "3%", containLabel: true },
-      xAxis: { type: "category", data: categories, axisLine: { show: showXAxisLine }, axisTick: { show: false }, axisLabel: { show: showXLabels }, splitLine: { show: showXGridLines } },
-      yAxis: { type: "value", axisLabel: { show: showYLabels }, splitLine: { show: showYGridLines } },
+      xAxis: {
+        type: "category",
+        data: categories,
+        axisLine: { show: showXAxisLine },
+        axisTick: { show: false },
+        splitLine: { show: showXGridLines },
+        axisLabel: {
+          show: showXLabels,
+          rotate: xRotateLabels,
+          fontSize: xLabelSize,
+          color: xLabelColor,
+          fontFamily: xFontFamily,
+          fontStyle: xFontStyle,
+          fontWeight: xFontWeight,
+          margin: 10
+        }
+      },
+      yAxis: {
+        type: "value",
+        axisLabel: {
+          show: showYLabels,
+          fontSize: yLabelSize,
+          color: yLabelColor,
+          fontFamily: yFontFamily,
+          fontStyle: yFontStyle,
+          fontWeight: yFontWeight,
+          margin: 8
+        },
+        splitLine: { show: showYGridLines }
+      },
       series: seriesData,
     };
 
@@ -301,7 +342,11 @@ export class Visual implements powerbi.extensibility.IVisual {
         displayName: "Y Axis",
         properties: {
           showLabels: (this.dataView?.metadata?.objects as any)?.yAxis?.showLabels !== false,
-          showGridLines: (this.dataView?.metadata?.objects as any)?.yAxis?.showGridLines !== false
+          showGridLines: (this.dataView?.metadata?.objects as any)?.yAxis?.showGridLines !== false,
+          labelColor: { solid: { color: (this.dataView?.metadata?.objects as any)?.yAxis?.labelColor?.solid?.color || "#666666" } },
+          labelSize: (this.dataView?.metadata?.objects as any)?.yAxis?.labelSize || 12,
+          fontFamily: (this.dataView?.metadata?.objects as any)?.yAxis?.fontFamily || "Segoe UI, sans-serif",
+          fontStyle: (this.dataView?.metadata?.objects as any)?.yAxis?.fontStyle || "regular"
         },
         selector: undefined as any
       });
@@ -314,7 +359,12 @@ export class Visual implements powerbi.extensibility.IVisual {
         properties: {
           showAxisLine: (this.dataView?.metadata?.objects as any)?.xAxis?.showAxisLine !== false,
           showLabels: (this.dataView?.metadata?.objects as any)?.xAxis?.showLabels !== false,
-          showGridLines: (this.dataView?.metadata?.objects as any)?.xAxis?.showGridLines === true
+          showGridLines: (this.dataView?.metadata?.objects as any)?.xAxis?.showGridLines === true,
+          labelColor: { solid: { color: (this.dataView?.metadata?.objects as any)?.xAxis?.labelColor?.solid?.color || "#666666" } },
+          labelSize: (this.dataView?.metadata?.objects as any)?.xAxis?.labelSize || 12,
+          rotateLabels: (this.dataView?.metadata?.objects as any)?.xAxis?.rotateLabels || 0,
+          fontFamily: (this.dataView?.metadata?.objects as any)?.xAxis?.fontFamily || "Segoe UI, sans-serif",
+          fontStyle: (this.dataView?.metadata?.objects as any)?.xAxis?.fontStyle || "regular"
         },
         selector: undefined as any
       });
