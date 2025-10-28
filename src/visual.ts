@@ -75,6 +75,31 @@ export class Visual implements powerbi.extensibility.IVisual {
     let seriesData: any[] = [];
     let legendNames: string[] = [];
 
+    // Data Labels settings
+    const dl: any = (dataView.metadata?.objects as any)?.dataLabels || {};
+    const dlShow: boolean = dl["show"] !== false;
+    const dlPositionSetting: string = dl["position"] || "auto";
+    const dlColor: string = (dl["color"] as any)?.solid?.color || "#444";
+    const dlFontFamily: string = (dl["fontFamily"] as string) || "Segoe UI";
+    const dlFontSize: number = typeof dl["fontSize"] === "number" ? dl["fontSize"] : 12;
+    const dlFontStyleSetting: string = (dl["fontStyle"] as string) || "normal"; // normal|bold|italic
+    const dlFontWeight: any = dlFontStyleSetting === "bold" ? "bold" : "normal";
+    const dlFontStyle: any = dlFontStyleSetting === "italic" ? "italic" : "normal";
+    const dlTransparency: number = typeof dl["transparency"] === "number" ? dl["transparency"] : 0;
+    const dlOpacity: number = Math.max(0, Math.min(1, 1 - (dlTransparency / 100)));
+
+    const mapLabelPosition = (pos: string): any => {
+      switch (pos) {
+        case "insideEnd": return "insideTop"; // near end inside (vertical bars)
+        case "outsideEnd": return "top";     // outside end
+        case "insideCenter": return "inside";
+        case "insideBase": return "insideBottom";
+        case "auto":
+        default: return "top";
+      }
+    };
+    const dlPosition = mapLabelPosition(dlPositionSetting);
+
     const valuesCols: any = categorical.values || [];
     const groups = valuesCols?.grouped?.() as any[] | undefined;
 
@@ -113,7 +138,16 @@ export class Visual implements powerbi.extensibility.IVisual {
             name,
             type: "bar",
             data: toNumberArray(group?.values?.[0]?.values || []),
-            label: { show: true, position: "top" },
+            label: {
+              show: dlShow,
+              position: dlPosition,
+              color: dlColor,
+              fontFamily: dlFontFamily,
+              fontSize: dlFontSize,
+              fontStyle: dlFontStyle,
+              fontWeight: dlFontWeight,
+              opacity: dlOpacity
+            },
             itemStyle: { color },
           });
         } else {
@@ -127,7 +161,16 @@ export class Visual implements powerbi.extensibility.IVisual {
               name,
               type: "bar",
               data: toNumberArray(mv?.values || []),
-              label: { show: true, position: "top" },
+              label: {
+                show: dlShow,
+                position: dlPosition,
+                color: dlColor,
+                fontFamily: dlFontFamily,
+                fontSize: dlFontSize,
+                fontStyle: dlFontStyle,
+                fontWeight: dlFontWeight,
+                opacity: dlOpacity
+              },
               itemStyle: { color },
             });
           }
@@ -143,7 +186,16 @@ export class Visual implements powerbi.extensibility.IVisual {
           name,
           type: "bar",
           data: toNumberArray(mv?.values || []),
-          label: { show: true, position: "top" },
+          label: {
+            show: dlShow,
+            position: dlPosition,
+            color: dlColor,
+            fontFamily: dlFontFamily,
+            fontSize: dlFontSize,
+            fontStyle: dlFontStyle,
+            fontWeight: dlFontWeight,
+            opacity: dlOpacity
+          },
           itemStyle: { color },
         };
       });
@@ -382,6 +434,25 @@ export class Visual implements powerbi.extensibility.IVisual {
           position,
           alignment,
           iconShape
+        },
+        selector: undefined as any
+      });
+    }
+
+    if (options.objectName === "dataLabels") {
+      const dl: any = (this.dataView?.metadata?.objects as any)?.dataLabels || {};
+      enumeration.push({
+        objectName: "dataLabels",
+        displayName: "Data Labels",
+        properties: {
+          show: dl?.show !== false,
+          series: dl?.series || "all",
+          position: dl?.position || "auto",
+          fontFamily: dl?.fontFamily || "Segoe UI",
+          fontSize: dl?.fontSize || 12,
+          fontStyle: dl?.fontStyle || "normal",
+          color: { solid: { color: dl?.color?.solid?.color || "#444444" } },
+          transparency: dl?.transparency || 0
         },
         selector: undefined as any
       });

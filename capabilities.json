@@ -40,8 +40,50 @@
       "displayName": "Data Labels",
       "properties": {
         "show": {
-          "displayName": "Show Labels",
+          "displayName": "Show Data Labels",
           "type": { "bool": true }
+        },
+        "series": {
+          "displayName": "Series",
+          "type": { "enumeration": [ { "displayName": "All", "value": "all" } ] }
+        },
+        "position": {
+          "displayName": "Position",
+          "type": {
+            "enumeration": [
+              { "displayName": "Auto", "value": "auto" },
+              { "displayName": "Inside end", "value": "insideEnd" },
+              { "displayName": "Outside end", "value": "outsideEnd" },
+              { "displayName": "Inside center", "value": "insideCenter" },
+              { "displayName": "Inside base", "value": "insideBase" }
+            ]
+          }
+        },
+        "fontFamily": {
+          "displayName": "Font Family",
+          "type": { "text": true }
+        },
+        "fontSize": {
+          "displayName": "Font Size",
+          "type": { "numeric": true }
+        },
+        "fontStyle": {
+          "displayName": "Font Style",
+          "type": {
+            "enumeration": [
+              { "displayName": "Normal", "value": "normal" },
+              { "displayName": "Bold", "value": "bold" },
+              { "displayName": "Italic", "value": "italic" }
+            ]
+          }
+        },
+        "color": {
+          "displayName": "Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "transparency": {
+          "displayName": "Transparency",
+          "type": { "numeric": true }
         }
       }
     },
