@@ -77,6 +77,8 @@ export class Visual implements powerbi.extensibility.IVisual {
   private baseLegendNames: string[] = [];
   private drillCategory: string | null = null;
   private hoverGraphic: any[] = [];
+  private selectionGraphic: any[] = [];
+  private selectedIndex: number | null = null;
   private currentCategories: any[] = [];
 
   // Restore to base (drill-up)
@@ -117,12 +119,24 @@ export class Visual implements powerbi.extensibility.IVisual {
     this.drillCategory = null;
     // Clear hover band on restore and redraw overlays
     this.hoverGraphic = [];
+    // Clear any selection when returning to base level
+    this.selectedIndex = null;
+    this.selectionGraphic = [];
     this.currentCategories = Array.isArray(this.baseCategories) ? [...this.baseCategories] : [];
+    // Force clear of any graphic overlays
+    (this.chartInstance as any).setOption({ graphic: [] }, { replaceMerge: ["graphic"] });
     this.updateDrillGraphics();
   }
 
   // Reset equals restore for 2-level drill
   private resetFullView() {
+    // In drill level: reset only clears selection band; Back button restores
+    if (this.isDrilled) {
+      this.selectedIndex = null;
+      this.selectionGraphic = [];
+      this.updateDrillGraphics();
+      return;
+    }
     this.restoreBaseView();
   }
 
@@ -159,8 +173,15 @@ export class Visual implements powerbi.extensibility.IVisual {
         onclick: () => this.resetFullView(),
       },
     ];
-    const combined = [...(this.hoverGraphic || []), ...buttons];
-    this.chartInstance?.setOption({ graphic: combined } as any, false);
+    const combined = [
+      ...(this.isDrilled ? (this.selectionGraphic || []) : []),
+      ...(this.hoverGraphic || []),
+      ...buttons
+    ];
+    (this.chartInstance as any).setOption(
+      { graphic: combined } as any,
+      { replaceMerge: ["graphic"] }
+    );
   }
 
   private buildDrillForCategory(clickedCategory: any): { categories: any[]; series: any[] } {
@@ -549,6 +570,14 @@ export class Visual implements powerbi.extensibility.IVisual {
   const legendPadding: number = typeof legendSettings["padding"] === "number" ? legendSettings["padding"] : 0;
   const legendExtraMargin: number = typeof legendSettings["extraMargin"] === "number" ? legendSettings["extraMargin"] : 0;
 
+  // Selection Style settings (for clicks in drill level)
+  const selObj: any = (dataView.metadata?.objects as any)?.selectionStyle || {};
+  const selColor: string = getSolidColor(selObj?.color?.solid?.color || "#0096FF");
+  const selBorderColor: string = getSolidColor(selObj?.borderColor?.solid?.color || "#0078D4");
+  const selBorderWidth: number = typeof selObj?.borderWidth === "number" ? selObj.borderWidth : 1.5;
+  const selOpacityPct: number = typeof selObj?.opacity === "number" ? selObj.opacity : 40;
+  const selOpacity: number = Math.max(0, Math.min(1, selOpacityPct / 100));
+
   // Compute legend placement (adapt to drill state)
   const isVertical = (legendPosition === "left" || legendPosition === "right");
   let legendTop: any = undefined;
@@ -679,7 +708,7 @@ export class Visual implements powerbi.extensibility.IVisual {
       this.baseLegendNames = Array.isArray(legendNames) ? [...legendNames] : [];
     }
 
-    // Custom hover background band per x category (treat both bars in same category as a group)
+  // Custom hover background band per x category (treat both bars in same category as a group)
     let currentHoverIndex: number | null = null;
     const updateHoverBand = (xIndex: number | null) => {
       if (xIndex === null) {
@@ -813,6 +842,10 @@ export class Visual implements powerbi.extensibility.IVisual {
             } as any,
             false
           );
+          // Clear any previous selection and overlays on entering drill
+          this.selectedIndex = null;
+          this.selectionGraphic = [];
+          (this.chartInstance as any).setOption({ graphic: [] }, { replaceMerge: ["graphic"] });
           this.updateDrillGraphics();
           // Update hover band to new axis after drill
           currentHoverIndex = null;
@@ -820,9 +853,70 @@ export class Visual implements powerbi.extensibility.IVisual {
           updateHoverBand(null);
           bindHoverHandlers();
         }
-      } else if (this.isDrilled) {
-        // Click outside bars restores
-        this.restoreBaseView();
+      } else if (this.isDrilled && params && params.componentType === "series") {
+        // Drill level: apply persistent selection band over clicked category
+        const name = params.name;
+        const cats = this.currentCategories || [];
+        const idx = cats.indexOf(name);
+        if (idx >= 0) {
+          // Toggle selection if same index clicked
+          if (this.selectedIndex === idx) {
+            this.selectedIndex = null;
+            this.selectionGraphic = [];
+            this.updateDrillGraphics();
+            return;
+          }
+          // Guard: only draw selection if in drill level
+          if (!this.isDrilled) {
+            this.selectedIndex = null;
+            this.selectionGraphic = [];
+            (this.chartInstance as any).setOption({ graphic: [] }, { replaceMerge: ["graphic"] });
+            this.updateDrillGraphics();
+            return;
+          }
+          this.selectedIndex = idx;
+          // Draw selection band similar to hover but using selectionStyle
+          const ec: any = this.chartInstance as any;
+          const centerPx = ec.convertToPixel({ xAxisIndex: 0 }, cats[idx]);
+          const leftCenter = idx > 0 ? ec.convertToPixel({ xAxisIndex: 0 }, cats[idx - 1]) : undefined;
+          const rightCenter = idx < cats.length - 1 ? ec.convertToPixel({ xAxisIndex: 0 }, cats[idx + 1]) : undefined;
+          let halfStep = 20;
+          if (leftCenter !== undefined && rightCenter !== undefined) {
+            halfStep = Math.min(Math.abs(centerPx - leftCenter), Math.abs(rightCenter - centerPx)) / 2;
+          } else if (rightCenter !== undefined) {
+            halfStep = Math.abs(rightCenter - centerPx) / 2;
+          } else if (leftCenter !== undefined) {
+            halfStep = Math.abs(centerPx - leftCenter) / 2;
+          }
+          const coord0 = centerPx - halfStep;
+          const coord1 = centerPx + halfStep;
+          const grid = ec.getModel().getComponent('grid', 0);
+          let topPx = 0, bottomPx = 0;
+          try {
+            const rect = grid?.coordinateSystem?.getRect();
+            topPx = rect?.y ?? 0; bottomPx = (rect?.y ?? 0) + (rect?.height ?? 0);
+          } catch {}
+          const leftPx = Math.min(coord0, coord1) - expandX;
+          const rightPx = Math.max(coord0, coord1) + expandX;
+          const width = Math.max(0, rightPx - leftPx);
+          const height = Math.max(0, (bottomPx - topPx) + expandY);
+          const rectX = leftPx;
+          const rectY = topPx - expandY;
+          this.selectionGraphic = [{
+            type: 'rect', id: 'selectionBand', z: 6,
+            shape: { x: rectX, y: rectY, width, height, r: 6 },
+            style: { fill: selColor, stroke: selBorderColor, lineWidth: selBorderWidth, fillOpacity: selOpacity, strokeOpacity: selOpacity },
+            silent: false,
+            cursor: 'pointer',
+            onclick: () => {
+              // toggle off on click over the band itself
+              this.selectedIndex = null;
+              this.selectionGraphic = [];
+              this.updateDrillGraphics();
+            }
+          }];
+          this.updateDrillGraphics();
+        }
       }
     });
 
@@ -968,6 +1062,20 @@ export class Visual implements powerbi.extensibility.IVisual {
           borderWidth: typeof hov?.borderWidth === "number" ? hov.borderWidth : 0,
           expandX: typeof hov?.expandX === "number" ? hov.expandX : 8,
           expandY: typeof hov?.expandY === "number" ? hov.expandY : 8
+        },
+        selector: undefined as any
+      });
+    }
+    if (options.objectName === "selectionStyle") {
+      const sel: any = (this.dataView?.metadata?.objects as any)?.selectionStyle || {};
+      enumeration.push({
+        objectName: "selectionStyle",
+        displayName: "Selection Style",
+        properties: {
+          color: { solid: { color: sel?.color?.solid?.color || "#0096FF" } },
+          borderColor: { solid: { color: sel?.borderColor?.solid?.color || "#0078D4" } },
+          borderWidth: typeof sel?.borderWidth === "number" ? sel.borderWidth : 1.5,
+          opacity: typeof sel?.opacity === "number" ? sel.opacity : 40
         },
         selector: undefined as any
       });
