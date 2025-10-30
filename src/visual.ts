@@ -31,6 +31,39 @@ import { ColorHelper } from "powerbi-visuals-utils-colorutils";
 import { dataViewWildcard } from "powerbi-visuals-utils-dataviewutils";
 import "./../style/visual.less";
 
+// Ensure solid color (no alpha). If input has rgba/argb/hex with alpha, drop alpha.
+function getSolidColor(color: string): string {
+  if (!color) return "#66aaff";
+  const c = color.trim();
+  const mRgba = c.match(/^rgba\s*\((\s*\d+\s*),(\s*\d+\s*),(\s*\d+\s*),(\s*\d*\.?\d+\s*)\)/i);
+  if (mRgba) {
+    const r = parseInt(mRgba[1]);
+    const g = parseInt(mRgba[2]);
+    const b = parseInt(mRgba[3]);
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+  const mRgb = c.match(/^rgb\s*\((\s*\d+\s*),(\s*\d+\s*),(\s*\d+\s*)\)/i);
+  if (mRgb) return c; // already solid rgb
+  // hex
+  if (c[0] === '#') {
+    const hex = c.replace('#','');
+    if (hex.length === 4 || hex.length === 8) {
+      // #RGBA or #RRGGBBAA → drop alpha
+      if (hex.length === 4) {
+        const r = parseInt(hex[0]+hex[0],16);
+        const g = parseInt(hex[1]+hex[1],16);
+        const b = parseInt(hex[2]+hex[2],16);
+        return `rgb(${r}, ${g}, ${b})`;
+      }
+      const r = parseInt(hex.substring(0,2),16);
+      const g = parseInt(hex.substring(2,4),16);
+      const b = parseInt(hex.substring(4,6),16);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  }
+  return c; // leave as-is (#RGB/#RRGGBB or named color)
+}
+
 export class Visual implements powerbi.extensibility.IVisual {
   private chartContainer: HTMLDivElement;
   private chartInstance: echarts.ECharts;
@@ -43,6 +76,8 @@ export class Visual implements powerbi.extensibility.IVisual {
   private baseSeriesSnapshot: any[] = [];
   private baseLegendNames: string[] = [];
   private drillCategory: string | null = null;
+  private hoverGraphic: any[] = [];
+  private currentCategories: any[] = [];
 
   // Restore to base (drill-up)
   private restoreBaseView() {
@@ -74,16 +109,16 @@ export class Visual implements powerbi.extensibility.IVisual {
   legend: { data: this.baseLegendNames, top: legendTop, bottom: legendBottom, left: legendLeft, right: legendRight, orient: isVertical ? "vertical" : "horizontal", padding },
         grid: { left: "3%", right: "4%", bottom: gridBottom, containLabel: true },
         animationDurationUpdate: 500,
-        animationEasingUpdate: "cubicOut",
-        graphic: [
-          { type: "text", id: "btnBack", invisible: true } as any,
-          { type: "text", id: "btnReset", invisible: true } as any,
-        ]
+        animationEasingUpdate: "cubicOut"
       } as any,
       false
     );
     this.isDrilled = false;
     this.drillCategory = null;
+    // Clear hover band on restore and redraw overlays
+    this.hoverGraphic = [];
+    this.currentCategories = Array.isArray(this.baseCategories) ? [...this.baseCategories] : [];
+    this.updateDrillGraphics();
   }
 
   // Reset equals restore for 2-level drill
@@ -92,7 +127,7 @@ export class Visual implements powerbi.extensibility.IVisual {
   }
 
   private updateDrillGraphics() {
-    const items: any[] = [
+    const buttons: any[] = [
       {
         type: "text",
         id: "btnBack",
@@ -124,7 +159,8 @@ export class Visual implements powerbi.extensibility.IVisual {
         onclick: () => this.resetFullView(),
       },
     ];
-    this.chartInstance?.setOption({ graphic: items } as any, false);
+    const combined = [...(this.hoverGraphic || []), ...buttons];
+    this.chartInstance?.setOption({ graphic: combined } as any, false);
   }
 
   private buildDrillForCategory(clickedCategory: any): { categories: any[]; series: any[] } {
@@ -443,6 +479,32 @@ export class Visual implements powerbi.extensibility.IVisual {
       return;
     }
 
+  // Hover style settings
+  const hoverObj: any = (dataView.metadata?.objects as any)?.hoverStyle || {};
+  const hoverColor: string = hoverObj?.color?.solid?.color || "#66aaff";
+  const fillOpacityPct: number = typeof hoverObj?.fillOpacity === "number" ? hoverObj.fillOpacity
+    : (typeof hoverObj?.opacity === "number" ? hoverObj.opacity : 30);
+  const borderOpacityPct: number = typeof hoverObj?.borderOpacity === "number" ? hoverObj.borderOpacity : 50;
+  const fillOpacity: number = Math.max(0, Math.min(1, fillOpacityPct / 100));
+  const strokeOpacity: number = Math.max(0, Math.min(1, borderOpacityPct / 100));
+  const hoverDuration: number = typeof hoverObj?.duration === "number" ? hoverObj.duration : 300;
+  const hoverEasing: string = typeof hoverObj?.easing === "string" ? hoverObj.easing : "cubicOut";
+  const hoverBorderColor: string = hoverObj?.borderColor?.solid?.color || "#00000020";
+  const hoverBorderWidth: number = typeof hoverObj?.borderWidth === "number" ? hoverObj.borderWidth : 0;
+  const expandX: number = typeof hoverObj?.expandX === "number" ? hoverObj.expandX : 8;
+  const expandY: number = typeof hoverObj?.expandY === "number" ? hoverObj.expandY : 8;
+
+  // We won't use item emphasis color, instead we draw a background band per category (xIndex) using axisPointer-like graphic on hover
+  // but keep mild emphasis to avoid clash with selection styling.
+  const seriesWithHover: any[] = (seriesData || []).map((s: any) => ({
+    ...s,
+    emphasis: {
+      focus: undefined,
+      scale: false
+    },
+    stateAnimation: { duration: hoverDuration, easing: hoverEasing }
+  }));
+
   const xAxisSettings: any = (dataView.metadata?.objects as any)?.xAxis || {};
   const yAxisSettings: any = (dataView.metadata?.objects as any)?.yAxis || {};
   // X Axis toggles
@@ -588,7 +650,7 @@ export class Visual implements powerbi.extensibility.IVisual {
         },
         splitLine: { show: showYGridLines }
       },
-      series: seriesData,
+      series: seriesWithHover,
     };
 
     /*const option: echarts.EChartsCoreOption = {
@@ -602,19 +664,108 @@ export class Visual implements powerbi.extensibility.IVisual {
 };*/
 
     this.chartInstance.clear();
-    this.chartInstance.setOption(option, true);
+  this.chartInstance.setOption(option, true);
     this.chartInstance.resize();
+  this.currentCategories = Array.isArray(categories) ? [...categories] : [];
 
     // Save base state for drill-up if not currently drilled
     if (!this.isDrilled) {
       this.baseCategories = Array.isArray(categories) ? [...categories] : [];
       try {
-        this.baseSeriesSnapshot = JSON.parse(JSON.stringify(seriesData));
+        this.baseSeriesSnapshot = JSON.parse(JSON.stringify(seriesWithHover));
       } catch {
-        this.baseSeriesSnapshot = seriesData.map((s) => ({ ...s }));
+        this.baseSeriesSnapshot = seriesWithHover.map((s) => ({ ...s }));
       }
       this.baseLegendNames = Array.isArray(legendNames) ? [...legendNames] : [];
     }
+
+    // Custom hover background band per x category (treat both bars in same category as a group)
+    let currentHoverIndex: number | null = null;
+    const updateHoverBand = (xIndex: number | null) => {
+      if (xIndex === null) {
+        this.hoverGraphic = [];
+        this.updateDrillGraphics();
+        return;
+      }
+      const ec: any = this.chartInstance as any;
+      const cats = this.currentCategories || [];
+      const centerPx = ec.convertToPixel({ xAxisIndex: 0 }, cats[xIndex]);
+      // Estimate band width from neighbor centers or fall back to axis band width
+      const leftCenter = xIndex > 0 ? ec.convertToPixel({ xAxisIndex: 0 }, cats[xIndex - 1]) : undefined;
+      const rightCenter = xIndex < cats.length - 1 ? ec.convertToPixel({ xAxisIndex: 0 }, cats[xIndex + 1]) : undefined;
+      let halfStep = 0;
+      if (leftCenter !== undefined && rightCenter !== undefined) {
+        halfStep = Math.min(Math.abs(centerPx - leftCenter), Math.abs(rightCenter - centerPx)) / 2;
+      } else if (rightCenter !== undefined) {
+        halfStep = Math.abs(rightCenter - centerPx) / 2;
+      } else if (leftCenter !== undefined) {
+        halfStep = Math.abs(centerPx - leftCenter) / 2;
+      } else {
+        try {
+          const xAxisModel = ec.getModel().getComponent('xAxis', 0);
+          const axis = xAxisModel?.axis;
+          const bw = axis?.getBandWidth ? axis.getBandWidth() : 40;
+          // convert axis units width to pixels by sampling delta of two close values
+          const testRight = ec.convertToPixel({ xAxisIndex: 0 }, categories[xIndex]);
+          const testLeft = testRight - (bw || 40);
+          halfStep = Math.abs(testRight - testLeft) / 2;
+        } catch { halfStep = 20; }
+      }
+      const coord0 = centerPx - halfStep;
+      const coord1 = centerPx + halfStep;
+      const grid = ec.getModel().getComponent('grid', 0);
+      let topPx = 0, bottomPx = 0;
+      try {
+        const rect = grid?.coordinateSystem?.getRect();
+        topPx = rect?.y ?? 0; bottomPx = (rect?.y ?? 0) + (rect?.height ?? 0);
+      } catch {}
+      const leftPx = Math.min(coord0, coord1) - expandX;
+      const rightPx = Math.max(coord0, coord1) + expandX;
+  const width = Math.max(0, rightPx - leftPx);
+  // Do not overshoot below the x-axis line, only above
+  const height = Math.max(0, (bottomPx - topPx) + expandY);
+  const rectX = leftPx;
+  const rectY = topPx - expandY;
+      const solidFill = getSolidColor(hoverColor);
+      const solidStroke = getSolidColor(hoverBorderColor);
+      this.hoverGraphic = [{
+        type: 'rect',
+        id: 'hoverBand',
+        z: 5,
+        shape: { x: rectX, y: rectY, width, height, r: 4 },
+        style: { fill: solidFill, stroke: solidStroke, lineWidth: hoverBorderWidth, fillOpacity, strokeOpacity },
+        silent: true
+      }];
+      this.updateDrillGraphics();
+    };
+
+    const bindHoverHandlers = () => {
+      const zr = this.chartInstance.getZr();
+      zr.off('mousemove');
+      zr.on('mousemove', (e: any) => {
+        const ec: any = this.chartInstance as any;
+        const inGrid = ec.containPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+        if (!inGrid) {
+          if (currentHoverIndex !== null) { currentHoverIndex = null; updateHoverBand(null); }
+          return;
+        }
+        const val = ec.convertFromPixel({ gridIndex: 0 }, [e.offsetX, e.offsetY]);
+        if (!Array.isArray(val)) return;
+        const xVal = val[0];
+        const cats = this.currentCategories || [];
+        let xi: number = -1;
+        if (typeof xVal === 'number' && Number.isFinite(xVal)) xi = Math.round(xVal);
+        else xi = cats.indexOf(xVal);
+        if (xi >= 0 && xi < cats.length) {
+          if (xi !== currentHoverIndex) { currentHoverIndex = xi; updateHoverBand(xi); }
+        }
+      });
+      zr.off('mouseleave');
+      zr.on('mouseleave', () => { currentHoverIndex = null; updateHoverBand(null); });
+    };
+
+    // initial binding after base render
+    bindHoverHandlers();
 
     // Wire click handlers for animated drilldown using real second-level categories
     this.chartInstance.off("click");
@@ -644,12 +795,18 @@ export class Visual implements powerbi.extensibility.IVisual {
             else dLeft = "center";
           }
           const dGridBottom = (pos === "bottom") ? `${15 + extra}%` : "3%";
+          // Keep the same series config; hover band is drawn via graphic overlay
+          const drillSeriesWithHover = (built.series || []).map((s: any) => ({
+            ...s,
+            emphasis: { focus: undefined, scale: false },
+            stateAnimation: { duration: hoverDuration, easing: hoverEasing }
+          }));
           this.chartInstance.setOption(
             {
               title: { text: `Details for ${clickedCategory}`, left: "center", top: "2%", textStyle: { fontSize: 16 as any, fontWeight: "bold", color: "#333" } },
               legend: { data: (built.series || []).map((s: any) => s.name), top: dTop, bottom: dBottom, left: dLeft, right: dRight, orient: isVertical ? "vertical" : "horizontal", padding },
               xAxis: { data: built.categories },
-              series: built.series as any,
+              series: drillSeriesWithHover as any,
               grid: { left: "3%", right: "4%", bottom: dGridBottom, containLabel: true },
               animationDurationUpdate: 800,
               animationEasingUpdate: "cubicInOut",
@@ -657,6 +814,11 @@ export class Visual implements powerbi.extensibility.IVisual {
             false
           );
           this.updateDrillGraphics();
+          // Update hover band to new axis after drill
+          currentHoverIndex = null;
+          this.currentCategories = Array.isArray(built.categories) ? [...built.categories] : [];
+          updateHoverBand(null);
+          bindHoverHandlers();
         }
       } else if (this.isDrilled) {
         // Click outside bars restores
@@ -786,6 +948,26 @@ export class Visual implements powerbi.extensibility.IVisual {
           fontStyle: dl?.fontStyle || "normal",
           color: { solid: { color: dl?.color?.solid?.color || "#444444" } },
           transparency: dl?.transparency || 0
+        },
+        selector: undefined as any
+      });
+    }
+    if (options.objectName === "hoverStyle") {
+      const hov: any = (this.dataView?.metadata?.objects as any)?.hoverStyle || {};
+      enumeration.push({
+        objectName: "hoverStyle",
+        displayName: "Hover Style",
+        properties: {
+          color: { solid: { color: hov?.color?.solid?.color || "#cce5ff" } },
+          opacity: typeof hov?.opacity === "number" ? hov.opacity : 30,
+          fillOpacity: typeof hov?.fillOpacity === "number" ? hov.fillOpacity : (typeof hov?.opacity === "number" ? hov.opacity : 30),
+          borderOpacity: typeof hov?.borderOpacity === "number" ? hov.borderOpacity : 50,
+          duration: typeof hov?.duration === "number" ? hov.duration : 300,
+          easing: hov?.easing || "cubicOut",
+          borderColor: { solid: { color: hov?.borderColor?.solid?.color || "#00000020" } },
+          borderWidth: typeof hov?.borderWidth === "number" ? hov.borderWidth : 0,
+          expandX: typeof hov?.expandX === "number" ? hov.expandX : 8,
+          expandY: typeof hov?.expandY === "number" ? hov.expandY : 8
         },
         selector: undefined as any
       });

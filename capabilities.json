@@ -27,6 +27,59 @@
   ],
   "supportsHighlight": true,
   "objects": {
+    "hoverStyle": {
+      "displayName": "Hover Style",
+      "properties": {
+        "color": {
+          "displayName": "Hover color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "opacity": {
+          "displayName": "Opacity (%)",
+          "type": { "numeric": true }
+        },
+        "fillOpacity": {
+          "displayName": "Fill Opacity (%)",
+          "type": { "numeric": true }
+        },
+        "borderOpacity": {
+          "displayName": "Border Opacity (%)",
+          "type": { "numeric": true }
+        },
+        "duration": {
+          "displayName": "Transition duration (ms)",
+          "type": { "numeric": true }
+        },
+        "easing": {
+          "displayName": "Easing",
+          "type": {
+            "enumeration": [
+              { "displayName": "Linear", "value": "linear" },
+              { "displayName": "cubicOut", "value": "cubicOut" },
+              { "displayName": "elasticOut", "value": "elasticOut" }
+            ]
+          }
+        },
+        "borderColor": {
+          "displayName": "Border Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "borderWidth": {
+          "displayName": "Border Width (px)",
+          "type": { "numeric": true }
+        },
+        "expandX": {
+          "displayName": "Horizontal Overshoot (px)",
+          "description": "Extra width on both sides of the highlighted band",
+          "type": { "numeric": true }
+        },
+        "expandY": {
+          "displayName": "Vertical Overshoot (px)",
+          "description": "Extend highlight above and below the plot area",
+          "type": { "numeric": true }
+        }
+      }
+    },
     "dataPoint": {
       "displayName": "Data colors",
       "properties": {
