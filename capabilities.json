@@ -200,6 +200,16 @@
               { "displayName": "Circle", "value": "circle" }
             ]
           }
+        },
+        "padding": {
+          "displayName": "Padding",
+          "description": "Legend padding in pixels",
+          "type": { "numeric": true }
+        }
+        ,
+        "extraMargin": {
+          "displayName": "Extra Margin (%)",
+          "type": { "numeric": true }
         }
       }
     }

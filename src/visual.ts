@@ -42,16 +42,37 @@ export class Visual implements powerbi.extensibility.IVisual {
   private baseCategories: any[] = [];
   private baseSeriesSnapshot: any[] = [];
   private baseLegendNames: string[] = [];
+  private drillCategory: string | null = null;
 
   // Restore to base (drill-up)
   private restoreBaseView() {
     if (!this.chartInstance) return;
+  const objects: any = this.dataView?.metadata?.objects || {};
+  const legendSettings: any = objects?.legend || {};
+  const pos: string = legendSettings["position"] || "top";
+  const align: string = legendSettings["alignment"] || "center"; // left|center|right
+  const extra: number = typeof legendSettings["extraMargin"] === "number" ? legendSettings["extraMargin"] : 0;
+  const padding: number = typeof legendSettings["padding"] === "number" ? legendSettings["padding"] : 0;
+    const isVertical = pos === "left" || pos === "right";
+    let legendTop: any = undefined, legendBottom: any = undefined, legendLeft: any = undefined, legendRight: any = undefined;
+    if (pos === "top") legendTop = `${5 + extra}%`;
+    if (pos === "bottom") legendBottom = `${5 + extra}%`;
+    if (pos === "left") { legendLeft = "2%"; legendTop = "5%"; }
+    if (pos === "right") { legendRight = "2%"; legendTop = "5%"; }
+    if (pos === "top" || pos === "bottom") {
+      if (align === "left") legendLeft = "2%";
+      else if (align === "right") legendRight = "2%";
+      else legendLeft = "center"; // center alignment
+    }
+    const gridBottom = pos === "bottom" ? `${10 + extra}%` : "3%";
+
     this.chartInstance.setOption(
       {
-        title: { text: "" },
+        title: { text: "", left: "center", top: "5%" },
         xAxis: { data: this.baseCategories },
         series: this.baseSeriesSnapshot as any,
-        legend: { data: this.baseLegendNames },
+  legend: { data: this.baseLegendNames, top: legendTop, bottom: legendBottom, left: legendLeft, right: legendRight, orient: isVertical ? "vertical" : "horizontal", padding },
+        grid: { left: "3%", right: "4%", bottom: gridBottom, containLabel: true },
         animationDurationUpdate: 500,
         animationEasingUpdate: "cubicOut",
         graphic: [
@@ -62,6 +83,7 @@ export class Visual implements powerbi.extensibility.IVisual {
       false
     );
     this.isDrilled = false;
+    this.drillCategory = null;
   }
 
   // Reset equals restore for 2-level drill
@@ -462,8 +484,10 @@ export class Visual implements powerbi.extensibility.IVisual {
   const legendAlignment: string = legendSettings["alignment"] || "center"; // left | center | right
   const legendIconSetting: string = legendSettings["iconShape"] || "rect";
   const legendIcon: string = legendIconSetting === "square" ? "rect" : legendIconSetting;
+  const legendPadding: number = typeof legendSettings["padding"] === "number" ? legendSettings["padding"] : 0;
+  const legendExtraMargin: number = typeof legendSettings["extraMargin"] === "number" ? legendSettings["extraMargin"] : 0;
 
-  // Compute legend placement
+  // Compute legend placement (adapt to drill state)
   const isVertical = (legendPosition === "left" || legendPosition === "right");
   let legendTop: any = undefined;
   let legendBottom: any = undefined;
@@ -472,7 +496,13 @@ export class Visual implements powerbi.extensibility.IVisual {
 
   if (legendPosition === "top" || legendPosition === "bottom") {
     // Use alignment for horizontal positions
-    if (legendPosition === "top") legendTop = "5%"; else legendBottom = "5%";
+    if (legendPosition === "top") {
+      const topBase = this.isDrilled ? 8 : 5;
+      legendTop = `${topBase + legendExtraMargin}%`;
+    } else {
+      const bottomBase = this.isDrilled ? 10 : 5;
+      legendBottom = `${bottomBase + legendExtraMargin}%`;
+    }
     if (legendAlignment === "left") legendLeft = "2%";
     else if (legendAlignment === "right") legendRight = "2%";
     else legendLeft = "center"; // center
@@ -484,15 +514,35 @@ export class Visual implements powerbi.extensibility.IVisual {
     legendTop = "5%";
   } else if (legendPosition === "topCenter" || legendPosition === "bottomCenter") {
     // Back-compat for previous centered options
-    if (legendPosition === "topCenter") legendTop = "5%"; else legendBottom = "5%";
+    if (legendPosition === "topCenter") {
+      const t = this.isDrilled ? 8 : 5;
+      legendTop = `${t + legendExtraMargin}%`;
+    } else {
+      const b = this.isDrilled ? 10 : 5;
+      legendBottom = `${b + legendExtraMargin}%`;
+    }
     legendLeft = "center";
   } else if (legendPosition === "bottomRight") {
-    legendBottom = "5%";
+    {
+      const b = this.isDrilled ? 10 : 5;
+      legendBottom = `${b + legendExtraMargin}%`;
+    }
     legendRight = "2%";
   }
 
+  // Grid bottom adjustment to prevent overlap when legend is bottom on drill
+  const gridBottom = (legendPosition === "bottom" || legendPosition === "bottomCenter" || legendPosition === "bottomRight")
+    ? `${(this.isDrilled ? 16 : 12) + legendExtraMargin}%`
+    : "3%";
+
     const option: echarts.EChartsCoreOption = {
       tooltip: { trigger: "axis" },
+      title: {
+        text: this.isDrilled && this.drillCategory ? `Details for ${this.drillCategory}` : "",
+        left: "center",
+        top: this.isDrilled ? "2%" : "5%",
+        textStyle: { fontSize: 16 as any, fontWeight: "bold", color: "#333" }
+      },
       legend: {
         type: "plain",
         orient: isVertical ? "vertical" : "horizontal",
@@ -501,12 +551,13 @@ export class Visual implements powerbi.extensibility.IVisual {
         left: legendLeft,
         right: legendRight,
         icon: legendIcon,
+        padding: legendPadding,
         itemWidth: 14,
         itemHeight: 14,
         textStyle: { fontSize: 12 },
         data: legendNames
       },
-      grid: { left: "3%", right: "4%", bottom: "3%", containLabel: true },
+      grid: { left: "3%", right: "4%", bottom: gridBottom, containLabel: true },
       xAxis: {
         type: "category",
         data: categories,
@@ -574,12 +625,32 @@ export class Visual implements powerbi.extensibility.IVisual {
         const built = this.buildDrillForCategory(clickedCategory);
         if (built.categories.length > 0) {
           this.isDrilled = true;
+          this.drillCategory = clickedCategory;
+          const objects: any = this.dataView?.metadata?.objects || {};
+          const legendSettings: any = objects?.legend || {};
+          const pos: string = legendSettings["position"] || "top";
+          const align: string = legendSettings["alignment"] || "center"; // left|center|right
+          const extra: number = typeof legendSettings["extraMargin"] === "number" ? legendSettings["extraMargin"] : 0;
+          const padding: number = typeof legendSettings["padding"] === "number" ? legendSettings["padding"] : 0;
+          const isVertical = pos === "left" || pos === "right";
+          let dTop: any = undefined, dBottom: any = undefined, dLeft: any = undefined, dRight: any = undefined;
+          if (pos === "top") dTop = `${8 + extra}%`;
+          if (pos === "bottom") dBottom = `${10 + extra}%`;
+          if (pos === "left") { dLeft = "2%"; dTop = "5%"; }
+          if (pos === "right") { dRight = "2%"; dTop = "5%"; }
+          if (pos === "top" || pos === "bottom") {
+            if (align === "left") dLeft = "2%";
+            else if (align === "right") dRight = "2%";
+            else dLeft = "center";
+          }
+          const dGridBottom = (pos === "bottom") ? `${15 + extra}%` : "3%";
           this.chartInstance.setOption(
             {
-              title: { text: `Details for ${clickedCategory}` },
-              legend: { data: (built.series || []).map((s: any) => s.name) },
+              title: { text: `Details for ${clickedCategory}`, left: "center", top: "2%", textStyle: { fontSize: 16 as any, fontWeight: "bold", color: "#333" } },
+              legend: { data: (built.series || []).map((s: any) => s.name), top: dTop, bottom: dBottom, left: dLeft, right: dRight, orient: isVertical ? "vertical" : "horizontal", padding },
               xAxis: { data: built.categories },
               series: built.series as any,
+              grid: { left: "3%", right: "4%", bottom: dGridBottom, containLabel: true },
               animationDurationUpdate: 800,
               animationEasingUpdate: "cubicInOut",
             } as any,
@@ -685,13 +756,17 @@ export class Visual implements powerbi.extensibility.IVisual {
       const position = objects?.legend?.position || "top";
       const alignment = objects?.legend?.alignment || "center";
       const iconShape = objects?.legend?.iconShape || "rect";
+        const extraMargin = typeof objects?.legend?.extraMargin === "number" ? objects.legend.extraMargin : 0;
+      const padding = typeof objects?.legend?.padding === "number" ? objects.legend.padding : 0;
       enumeration.push({
         objectName: "legend",
         displayName: "Legend",
         properties: {
           position,
           alignment,
-          iconShape
+          iconShape,
+          extraMargin,
+          padding
         },
         selector: undefined as any
       });
