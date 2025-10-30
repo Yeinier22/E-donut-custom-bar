@@ -37,6 +37,174 @@ export class Visual implements powerbi.extensibility.IVisual {
   private host: powerbi.extensibility.IVisualHost;
   private seriesColors: { [key: string]: string } = {};
   private dataView: powerbi.DataView | undefined;
+  // Drilldown state
+  private isDrilled: boolean = false;
+  private baseCategories: any[] = [];
+  private baseSeriesSnapshot: any[] = [];
+  private baseLegendNames: string[] = [];
+
+  // Restore to base (drill-up)
+  private restoreBaseView() {
+    if (!this.chartInstance) return;
+    this.chartInstance.setOption(
+      {
+        title: { text: "" },
+        xAxis: { data: this.baseCategories },
+        series: this.baseSeriesSnapshot as any,
+        legend: { data: this.baseLegendNames },
+        animationDurationUpdate: 500,
+        animationEasingUpdate: "cubicOut",
+        graphic: [
+          { type: "text", id: "btnBack", invisible: true } as any,
+          { type: "text", id: "btnReset", invisible: true } as any,
+        ]
+      } as any,
+      false
+    );
+    this.isDrilled = false;
+  }
+
+  // Reset equals restore for 2-level drill
+  private resetFullView() {
+    this.restoreBaseView();
+  }
+
+  private updateDrillGraphics() {
+    const items: any[] = [
+      {
+        type: "text",
+        id: "btnBack",
+        left: 20,
+        top: 20,
+        z: 1000,
+        invisible: !this.isDrilled,
+        style: {
+          text: "↩ Back",
+          font: "bold 14px Segoe UI",
+          fill: "#555",
+        },
+        cursor: "pointer",
+        onclick: () => this.restoreBaseView(),
+      },
+      {
+        type: "text",
+        id: "btnReset",
+        left: 100,
+        top: 20,
+        z: 1000,
+        invisible: !this.isDrilled,
+        style: {
+          text: "⟳ Reset",
+          font: "bold 14px Segoe UI",
+          fill: "#555",
+        },
+        cursor: "pointer",
+        onclick: () => this.resetFullView(),
+      },
+    ];
+    this.chartInstance?.setOption({ graphic: items } as any, false);
+  }
+
+  private buildDrillForCategory(clickedCategory: any): { categories: any[]; series: any[] } {
+    const dv = this.dataView;
+    const categorical = dv?.categorical;
+    const cat1 = categorical?.categories?.[0]?.values || [];
+    const cat2 = categorical?.categories?.[1]?.values || [];
+    const valuesCols: any = categorical?.values || [];
+    const groups = valuesCols?.grouped?.() as any[] | undefined;
+    const rowCount = (cat1 as any[]).length;
+    const idxs: number[] = [];
+    for (let i = 0; i < rowCount; i++) {
+      if (cat1[i] === clickedCategory) idxs.push(i);
+    }
+    const cat2Order: any[] = [];
+    const seen2 = new Set<any>();
+    for (const i of idxs) {
+      const v = (cat2 as any[])[i];
+      if (!seen2.has(v)) {
+        seen2.add(v);
+        cat2Order.push(v);
+      }
+    }
+
+    // Bring current Data Labels styles
+    const dl: any = (dv?.metadata?.objects as any)?.dataLabels || {};
+    const dlShow: boolean = dl["show"] !== false;
+    const dlColor: string = (dl["color"] as any)?.solid?.color || "#444";
+    const dlFontFamily: string = (dl["fontFamily"] as string) || "Segoe UI";
+    const dlFontSize: number = typeof dl["fontSize"] === "number" ? dl["fontSize"] : 12;
+    const dlFontStyleSetting: string = (dl["fontStyle"] as string) || "normal";
+    const dlFontWeight: any = dlFontStyleSetting === "bold" ? "bold" : "normal";
+    const dlFontStyle: any = dlFontStyleSetting === "italic" ? "italic" : "normal";
+    const dlTransparency: number = typeof dl["transparency"] === "number" ? dl["transparency"] : 0;
+    const dlOpacity: number = Math.max(0, Math.min(1, 1 - (dlTransparency / 100)));
+
+    const toNumber = (x: any) =>
+      x === null || x === undefined || x === "" ? 0 : typeof x === "number" ? x : Number(x);
+
+    const buildSeries = (name: string, dataArr: number[], color: string) => ({
+      name,
+      type: "bar",
+      data: dataArr,
+      label: {
+        show: dlShow,
+        position: "top",
+        color: dlColor,
+        fontFamily: dlFontFamily,
+        fontSize: dlFontSize,
+        fontStyle: dlFontStyle,
+        fontWeight: dlFontWeight,
+        opacity: dlOpacity,
+      },
+      itemStyle: { color },
+    });
+
+    const seriesOut: any[] = [];
+
+    if (Array.isArray(groups) && groups.length > 0) {
+      const measureCount = groups[0]?.values?.length || 0;
+      for (const group of groups) {
+        if (measureCount <= 1) {
+          const name = group?.name ?? "Group";
+          const src = group?.values?.[0]?.values || [];
+          const color = this.seriesColors?.[name] || "#6688cc";
+          const sums = cat2Order.map((c2) => {
+            let s = 0;
+            for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
+            return s;
+          });
+          seriesOut.push(buildSeries(name, sums, color));
+        } else {
+          for (const mv of group.values || []) {
+            const name = `${group?.name ?? "Group"} · ${mv?.source?.displayName ?? "Series"}`;
+            const src = mv?.values || [];
+            const color = this.seriesColors?.[name] || "#6688cc";
+            const sums = cat2Order.map((c2) => {
+              let s = 0;
+              for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
+              return s;
+            });
+            seriesOut.push(buildSeries(name, sums, color));
+          }
+        }
+      }
+    } else {
+      const measures: any[] = (valuesCols as any[]) || [];
+      for (const mv of measures) {
+        const name = mv?.source?.displayName ?? "Series";
+        const src = mv?.values || [];
+        const color = this.seriesColors?.[name] || "#6688cc";
+        const sums = cat2Order.map((c2) => {
+          let s = 0;
+          for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
+          return s;
+        });
+        seriesOut.push(buildSeries(name, sums, color));
+      }
+    }
+
+    return { categories: cat2Order, series: seriesOut };
+  }
 
   constructor(options: powerbi.extensibility.visual.VisualConstructorOptions) {
     this.chartContainer = document.createElement("div");
@@ -57,10 +225,22 @@ export class Visual implements powerbi.extensibility.IVisual {
 
     const categorical = dataView.categorical;
     const categoryCols = categorical.categories || [];
-    const rowCount = categoryCols[0]?.values?.length || 0;
+    const cat1All = categoryCols[0]?.values || [];
+    const cat2All = categoryCols[1]?.values || [];
+    const rowCount = cat1All.length || 0;
 
-    // Construir etiquetas del eje X admitiendo múltiples columnas en Category
-    const categories = categorical.categories?.[0]?.values || [];
+    // Construir eje X: usar solo el primer nivel (Category[0]) con agregación por nivel
+    const uniqueCat1: any[] = [];
+    const idxsByCat1 = new Map<any, number[]>();
+    for (let i = 0; i < rowCount; i++) {
+      const v = (cat1All as any[])[i];
+      if (!idxsByCat1.has(v)) {
+        idxsByCat1.set(v, []);
+        uniqueCat1.push(v);
+      }
+      idxsByCat1.get(v)!.push(i);
+    }
+    const categories = uniqueCat1;
 
     // Utilidad: normalizar valores a números o null
     const toNumberArray = (arr: any[]) =>
@@ -74,6 +254,17 @@ export class Visual implements powerbi.extensibility.IVisual {
 
     let seriesData: any[] = [];
     let legendNames: string[] = [];
+    const nameCount: Record<string, number> = {};
+    const makeUniqueName = (raw: any): string => {
+      let base = (raw === null || raw === undefined || String(raw) === "") ? "(Blank)" : String(raw);
+      if (nameCount[base] === undefined) {
+        nameCount[base] = 1;
+        return base;
+      } else {
+        nameCount[base] += 1;
+        return `${base} (${nameCount[base]})`;
+      }
+    };
 
     // Data Labels settings
     const dl: any = (dataView.metadata?.objects as any)?.dataLabels || {};
@@ -126,18 +317,28 @@ export class Visual implements powerbi.extensibility.IVisual {
       return color;
     };
 
+    const toNumber = (x: any) =>
+      x === null || x === undefined || x === "" ? 0 : typeof x === "number" ? x : Number(x);
+
     if (Array.isArray(groups) && groups.length > 0) {
       // Con leyenda: una serie por grupo de leyenda; si hay varias medidas en Series, crear una por medida
       const measureCount = groups[0]?.values?.length || 0;
       for (const group of groups) {
         if (measureCount <= 1) {
-          const name = group?.name ?? "Group";
+          const name = makeUniqueName(group?.name);
           const color = resolveSeriesColor(name, group);
           legendNames.push(name);
+          // Agregar por Category[0]
+          const src: any[] = group?.values?.[0]?.values || [];
+          const agg = uniqueCat1.map((c) => {
+            const idxs = idxsByCat1.get(c) || [];
+            let s = 0; for (const i of idxs) s += toNumber(src[i]);
+            return s;
+          });
           seriesData.push({
             name,
             type: "bar",
-            data: toNumberArray(group?.values?.[0]?.values || []),
+            data: agg,
             label: {
               show: dlShow,
               position: dlPosition,
@@ -152,15 +353,21 @@ export class Visual implements powerbi.extensibility.IVisual {
           });
         } else {
           for (const mv of group.values || []) {
-            const name = `${group?.name ?? "Group"} · ${
-              mv?.source?.displayName ?? "Series"
-            }`;
+            const left = (group?.name === null || group?.name === undefined || String(group?.name) === "") ? "(Blank)" : String(group?.name);
+            const right = mv?.source?.displayName ?? "Series";
+            const name = makeUniqueName(`${left} · ${right}`);
             const color = resolveSeriesColor(name, group);
             legendNames.push(name);
+            const src: any[] = mv?.values || [];
+            const agg = uniqueCat1.map((c) => {
+              const idxs = idxsByCat1.get(c) || [];
+              let s = 0; for (const i of idxs) s += toNumber(src[i]);
+              return s;
+            });
             seriesData.push({
               name,
               type: "bar",
-              data: toNumberArray(mv?.values || []),
+              data: agg,
               label: {
                 show: dlShow,
                 position: dlPosition,
@@ -182,10 +389,16 @@ export class Visual implements powerbi.extensibility.IVisual {
       seriesData = measures.map((mv: any, idx: number) => {
         const name = mv?.source?.displayName ?? `Series ${idx + 1}`;
         const color = resolveSeriesColor(name);
+        const src: any[] = mv?.values || [];
+        const agg = uniqueCat1.map((c) => {
+          const idxs = idxsByCat1.get(c) || [];
+          let s = 0; for (const i of idxs) s += toNumber(src[i]);
+          return s;
+        });
         return {
           name,
           type: "bar",
-          data: toNumberArray(mv?.values || []),
+          data: agg,
           label: {
             show: dlShow,
             position: dlPosition,
@@ -340,6 +553,51 @@ export class Visual implements powerbi.extensibility.IVisual {
     this.chartInstance.clear();
     this.chartInstance.setOption(option, true);
     this.chartInstance.resize();
+
+    // Save base state for drill-up if not currently drilled
+    if (!this.isDrilled) {
+      this.baseCategories = Array.isArray(categories) ? [...categories] : [];
+      try {
+        this.baseSeriesSnapshot = JSON.parse(JSON.stringify(seriesData));
+      } catch {
+        this.baseSeriesSnapshot = seriesData.map((s) => ({ ...s }));
+      }
+      this.baseLegendNames = Array.isArray(legendNames) ? [...legendNames] : [];
+    }
+
+    // Wire click handlers for animated drilldown using real second-level categories
+    this.chartInstance.off("click");
+    this.chartInstance.off("dblclick");
+    this.chartInstance.on("click", (params: any) => {
+      if (params && params.componentType === "series" && !this.isDrilled) {
+        const clickedCategory: string = params.name;
+        const built = this.buildDrillForCategory(clickedCategory);
+        if (built.categories.length > 0) {
+          this.isDrilled = true;
+          this.chartInstance.setOption(
+            {
+              title: { text: `Details for ${clickedCategory}` },
+              legend: { data: (built.series || []).map((s: any) => s.name) },
+              xAxis: { data: built.categories },
+              series: built.series as any,
+              animationDurationUpdate: 800,
+              animationEasingUpdate: "cubicInOut",
+            } as any,
+            false
+          );
+          this.updateDrillGraphics();
+        }
+      } else if (this.isDrilled) {
+        // Click outside bars restores
+        this.restoreBaseView();
+      }
+    });
+
+    this.chartInstance.on("dblclick", () => {
+      if (this.isDrilled) {
+        this.restoreBaseView();
+      }
+    });
   }
 
   public enumerateObjectInstances(
