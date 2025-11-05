@@ -348,6 +348,16 @@
         "textSpacing": {
           "displayName": "Text Line Spacing",
           "type": { "numeric": true }
+        },
+        "columnOffset": {
+          "displayName": "Label Column Offset (px)",
+          "description": "Move label columns inward (-) or outward (+) from the donut",
+          "type": { "numeric": true }
+        },
+        "sidePadding": {
+          "displayName": "Side Padding (px)",
+          "description": "Extra left/right padding that pushes labels inward from the edges",
+          "type": { "numeric": true }
         }
       }
     }

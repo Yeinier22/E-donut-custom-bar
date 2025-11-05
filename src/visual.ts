@@ -89,6 +89,8 @@ export class Visual implements powerbi.extensibility.IVisual {
   private labelLineLengthSetting: number = 20;
   private labelCurveTensionSetting: number = 0.9;
   private labelTextSpacingSetting: number = 4;
+  private labelColumnOffsetSetting: number = 0;
+  private labelSidePaddingSetting: number = 0;
 
   // Enhanced polar label layout with dynamic sizing and Power BI-style positioning
   private makePolarLabelLayout(radialLen: number, horizLen: number, sideMargin = 12) {
@@ -128,8 +130,8 @@ export class Visual implements powerbi.extensibility.IVisual {
         const labelW = params?.labelRect?.width || 0;
         const labelH = params?.labelRect?.height || 0;
 
-        const safeMinX = adaptiveMargin;
-        const safeMaxX = w - adaptiveMargin;
+  const safeMinX = adaptiveMargin + Math.max(0, this.labelSidePaddingSetting || 0);
+  const safeMaxX = w - (adaptiveMargin + Math.max(0, this.labelSidePaddingSetting || 0));
         const safeMinCenterY = adaptiveMargin + labelH / 2;
         const safeMaxCenterY = Math.max(safeMinCenterY, h - adaptiveMargin - labelH / 2);
 
@@ -138,10 +140,10 @@ export class Visual implements powerbi.extensibility.IVisual {
         labelCenterY = Math.max(safeMinCenterY, Math.min(labelCenterY, safeMaxCenterY));
         const labelTop = labelCenterY - labelH / 2;
 
-        const lineLengthSetting = Math.max(6, this.labelLineLengthSetting || adaptiveHorizLen);
+  const lineLengthSetting = Math.max(6, this.labelLineLengthSetting || adaptiveHorizLen);
 
         // Column target pushes labels away from donut similar to the shared references
-        const desiredOffset = rOuter + adaptiveRadialLen + lineLengthSetting;
+  const desiredOffset = rOuter + adaptiveRadialLen + lineLengthSetting + (this.labelColumnOffsetSetting || 0);
         let labelLeft: number;
 
         if (isRightSide) {
@@ -766,9 +768,11 @@ export class Visual implements powerbi.extensibility.IVisual {
       typeof value === "number" && Number.isFinite(value)
         ? Math.max(min, Math.min(max, value))
         : fallback;
-    this.labelLineLengthSetting = clampNumeric(labelTuneObj.lineLength, 20, 4, 160);
-    this.labelCurveTensionSetting = clampNumeric(labelTuneObj.curveTension, 0.9, 0.1, 2.5);
-    this.labelTextSpacingSetting = clampNumeric(labelTuneObj.textSpacing, 4, 0, 20);
+  this.labelLineLengthSetting = clampNumeric(labelTuneObj.lineLength, 20, 4, 160);
+  this.labelCurveTensionSetting = clampNumeric(labelTuneObj.curveTension, 0.9, 0.1, 2.5);
+  this.labelTextSpacingSetting = clampNumeric(labelTuneObj.textSpacing, 4, 0, 20);
+  this.labelColumnOffsetSetting = clampNumeric(labelTuneObj.columnOffset, 0, -120, 240);
+  this.labelSidePaddingSetting = clampNumeric(labelTuneObj.sidePadding, 0, 0, 120);
 
     const categorical = dataView.categorical;
     const categoryCols = categorical.categories || [];
