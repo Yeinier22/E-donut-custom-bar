@@ -1,31 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#6B8DD6"/>
-      <stop offset="100%" stop-color="#5470C6"/>
+    <linearGradient id="c1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5470C6"/>
+      <stop offset="100%" stop-color="#6B8DD6"/>
     </linearGradient>
-    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#A1D68F"/>
-      <stop offset="100%" stop-color="#91CC75"/>
+    <linearGradient id="c2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#91CC75"/>
+      <stop offset="100%" stop-color="#73B76A"/>
     </linearGradient>
-    <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#F08A8A"/>
-      <stop offset="100%" stop-color="#EE6666"/>
+    <linearGradient id="c3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FAC858"/>
+      <stop offset="100%" stop-color="#F2B241"/>
     </linearGradient>
-    <linearGradient id="g4" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#FCD575"/>
-      <stop offset="100%" stop-color="#FAC858"/>
+    <linearGradient id="c4" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EE6666"/>
+      <stop offset="100%" stop-color="#D85858"/>
     </linearGradient>
   </defs>
-  <rect x="0" y="0" width="64" height="64" fill="#ffffff" fill-opacity="0"/>
-  <!-- Axes -->
-  <line x1="10" y1="54" x2="58" y2="54" stroke="#555" stroke-width="2"/>
-  <line x1="10" y1="54" x2="10" y2="10" stroke="#555" stroke-width="2"/>
-  <!-- Bars group 1 -->
-  <rect x="14" y="34" width="8" height="20" fill="url(#g1)" rx="1"/>
-  <rect x="24" y="28" width="8" height="26" fill="url(#g2)" rx="1"/>
-  <!-- Bars group 2 -->
-  <rect x="36" y="20" width="8" height="34" fill="url(#g3)" rx="1"/>
-  <rect x="46" y="40" width="8" height="14" fill="url(#g4)" rx="1"/>
+  <rect width="64" height="64" fill="#fff" fill-opacity="0"/>
+
+  <!-- Donut ring background -->
+  <circle cx="32" cy="32" r="22" fill="#E9ECEF"/>
+
+  <!-- Donut slices (4 sectors) -->
+  <!-- Sector 1: 300° to 30° (blue) -->
+  <path d="M32 10 A22 22 0 0 1 51 20 L44 24 A14 14 0 0 0 32 18 Z" fill="url(#c1)" stroke="#fff" stroke-width="1.5"/>
+  <!-- Sector 2: 30° to 120° (green) -->
+  <path d="M51 20 A22 22 0 0 1 44 51 L39 45 A14 14 0 0 0 44 24 Z" fill="url(#c2)" stroke="#fff" stroke-width="1.5"/>
+  <!-- Sector 3: 120° to 210° (yellow) -->
+  <path d="M44 51 A22 22 0 0 1 20 44 L24 39 A14 14 0 0 0 39 45 Z" fill="url(#c3)" stroke="#fff" stroke-width="1.5"/>
+  <!-- Sector 4: 210° to 300° (red) -->
+  <path d="M20 44 A22 22 0 0 1 32 10 L32 18 A14 14 0 0 0 24 39 Z" fill="url(#c4)" stroke="#fff" stroke-width="1.5"/>
+
+  <!-- Inner hole -->
+  <circle cx="32" cy="32" r="11" fill="#FFFFFF" stroke="#D0D5DD" stroke-width="1.2"/>
 </svg>

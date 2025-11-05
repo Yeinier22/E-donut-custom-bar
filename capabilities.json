@@ -2,7 +2,8 @@
   "dataRoles": [
     { "name": "category", "kind": "Grouping", "displayName": "Category" },
     { "name": "legend", "kind": "Grouping", "displayName": "Legend" },
-    { "name": "series", "kind": "GroupingOrMeasure", "displayName": "Series" }
+    { "name": "series", "kind": "GroupingOrMeasure", "displayName": "Series" },
+    { "name": "labelVisibility", "kind": "Measure", "displayName": "Label Visibility (DAX)", "description": "Optional: measure that returns 1 to show label, 0 to hide" }
   ],
   "dataViewMappings": [
     {
@@ -17,7 +18,8 @@
           "group": {
             "by": "legend",
             "select": [
-              { "bind": { "to": "series" } }
+              { "bind": { "to": "series" } },
+              { "for": { "in": "labelVisibility" } }
             ],
             "dataReductionAlgorithm": { "top": {} }
           }
@@ -137,9 +139,26 @@
         "transparency": {
           "displayName": "Transparency",
           "type": { "numeric": true }
+        },
+        "showBlankAs": {
+          "displayName": "Show blank as",
+          "type": { "text": true }
+        },
+        "treatZeroAsBlank": {
+          "displayName": "Treat zero as blank",
+          "type": { "bool": true }
         }
       }
     },
+      "drillHeader": {
+        "displayName": "Drill header",
+        "properties": {
+          "show": {
+            "displayName": "Show title",
+            "type": { "bool": true }
+          }
+        }
+      },
     "xAxis": {
       "displayName": "X Axis",
       "properties": {
@@ -223,6 +242,10 @@
     "legend": {
       "displayName": "Legend",
       "properties": {
+        "show": {
+          "displayName": "Show legend",
+          "type": { "bool": true }
+        },
         "position": {
           "displayName": "Position",
           "type": {
@@ -245,14 +268,25 @@
           }
         },
         "iconShape": {
-          "displayName": "Icon Shape",
+          "displayName": "Marker Shape",
           "type": {
             "enumeration": [
-              { "displayName": "Rectangle", "value": "rect" },
+              { "displayName": "Default", "value": "default" },
+              { "displayName": "Circle", "value": "circle" },
               { "displayName": "Square", "value": "square" },
-              { "displayName": "Circle", "value": "circle" }
+              { "displayName": "Rhombus", "value": "rhombus" },
+              { "displayName": "Triangle", "value": "triangle" },
+              { "displayName": "Triangle (upside down)", "value": "triangleDown" }
             ]
           }
+        },
+        "markerSize": {
+          "displayName": "Marker Size",
+          "type": { "numeric": true }
+        },
+        "fontSize": {
+          "displayName": "Font Size",
+          "type": { "formatting": { "fontSize": true } }
         },
         "padding": {
           "displayName": "Padding",
@@ -262,6 +296,57 @@
         ,
         "extraMargin": {
           "displayName": "Extra Margin (%)",
+          "type": { "numeric": true }
+        }
+      }
+    },
+    "spacing": {
+      "displayName": "Spacing",
+      "properties": {
+        "innerRadiusPercent": {
+          "displayName": "Inner radius (%)",
+          "type": { "numeric": true }
+        },
+        "ringWidthPercent": {
+          "displayName": "Ring width (%)",
+          "type": { "numeric": true }
+        }
+      }
+    },
+    "selectionStyle": {
+      "displayName": "Selection Style",
+      "properties": {
+        "color": {
+          "displayName": "Fill color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "borderColor": {
+          "displayName": "Border color",
+          "type": { "fill": { "solid": { "color": true } } }
+        },
+        "borderWidth": {
+          "displayName": "Border width",
+          "type": { "numeric": true }
+        },
+        "opacity": {
+          "displayName": "Opacity (%)",
+          "type": { "numeric": true }
+        }
+      }
+    },
+    "labelTuning": {
+      "displayName": "Label & Line Tuning",
+      "properties": {
+        "lineLength": {
+          "displayName": "Line Length",
+          "type": { "numeric": true }
+        },
+        "curveTension": {
+          "displayName": "Curve Tension",
+          "type": { "numeric": true }
+        },
+        "textSpacing": {
+          "displayName": "Text Line Spacing",
           "type": { "numeric": true }
         }
       }
