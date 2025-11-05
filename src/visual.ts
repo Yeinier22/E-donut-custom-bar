@@ -27,7 +27,7 @@
 
 import * as echarts from "echarts";
 import powerbi from "powerbi-visuals-api";
-import { ColorHelper } from "powerbi-visuals-utils-colorutils";
+// import { ColorHelper } from "powerbi-visuals-utils-colorutils";
 import { dataViewWildcard } from "powerbi-visuals-utils-dataviewutils";
 import "./../style/visual.less";
 
@@ -68,7 +68,33 @@ export class Visual implements powerbi.extensibility.IVisual {
   private chartContainer: HTMLDivElement;
   private chartInstance: echarts.ECharts;
   private host: powerbi.extensibility.IVisualHost;
-  private seriesColors: { [key: string]: string } = {};
+  private seriesColorsL1: { [key: string]: string } = {};
+  private seriesColorsL2: { [key: string]: string } = {};
+  private getPaletteColor(name: string): string {
+    try {
+      const val = (this.host as any)?.colorPalette?.getColor?.(String(name))?.value;
+      return typeof val === "string" && val ? val : "#3366CC";
+    } catch { return "#3366CC"; }
+  }
+  private getPersistedFillForCategory(catIndex: number, objectName: string, name: string): string | undefined {
+    const dv = this.dataView;
+    const categorical = dv?.categorical;
+    const cat = categorical?.categories?.[catIndex];
+    if (!cat) return undefined;
+    const values = (cat.values || []) as any[];
+    const objs = (cat as any).objects as any[] | undefined;
+    if (!objs || objs.length === 0) return undefined;
+    const want = (name === null || name === undefined || String(name) === "") ? "(Blank)" : String(name);
+    for (let i = 0; i < values.length; i++) {
+      const v = (values[i] === null || values[i] === undefined || String(values[i]) === "") ? "(Blank)" : String(values[i]);
+      if (v === want) {
+        const o = objs[i];
+        const fill = o?.[objectName]?.fill?.solid?.color;
+        if (typeof fill === "string" && fill) return fill;
+      }
+    }
+    return undefined;
+  }
   private dataView: powerbi.DataView | undefined;
   // Drilldown state
   private isDrilled: boolean = false;
@@ -91,6 +117,7 @@ export class Visual implements powerbi.extensibility.IVisual {
   private labelTextSpacingSetting: number = 4;
   private labelColumnOffsetSetting: number = 0;
   private labelSidePaddingSetting: number = 0;
+  private centerYPercentSetting: number = 58;
 
   // Enhanced polar label layout with dynamic sizing and Power BI-style positioning
   private makePolarLabelLayout(radialLen: number, horizLen: number, sideMargin = 12) {
@@ -103,8 +130,9 @@ export class Visual implements powerbi.extensibility.IVisual {
         const layout = data?.getItemLayout?.(params?.dataIndex);
         if (!layout) return {};
 
-        const cx: number = layout.cx ?? w * 0.5;
-        const cy: number = layout.cy ?? h * 0.58;
+  const cx: number = layout.cx ?? w * 0.5;
+  const cyPct = Math.max(0, Math.min(100, this.centerYPercentSetting || 58)) / 100;
+  const cy: number = layout.cy ?? h * cyPct;
         const rOuter: number = layout.r ?? Math.min(w, h) * 0.35;
         const a0: number = layout.startAngle ?? 0;
         const a1: number = layout.endAngle ?? 0;
@@ -293,6 +321,32 @@ export class Visual implements powerbi.extensibility.IVisual {
       lineStyle: { width: 0.8, color: '#666666', type: 'solid' }
     };
 
+    // Data Labels styling and formatter (match base update)
+    const dl: any = objects?.dataLabels || {};
+    const dlShow: boolean = dl["show"] !== false;
+    const dlColor: string = (dl["color"] as any)?.solid?.color || "#444";
+    const dlFontFamily: string = (dl["fontFamily"] as string) || "Segoe UI";
+    const dlFontSize: number = typeof dl["fontSize"] === "number" ? dl["fontSize"] : 12;
+    const dlFontStyleSetting: string = (dl["fontStyle"] as string) || "normal";
+    const dlFontWeight: any = dlFontStyleSetting === "bold" ? "bold" : "normal";
+    const dlFontStyle: any = dlFontStyleSetting === "italic" ? "italic" : "normal";
+    const dlTransparency: number = typeof dl["transparency"] === "number" ? dl["transparency"] : 0;
+    const dlOpacity: number = Math.max(0, Math.min(1, 1 - dlTransparency / 100));
+    const dlShowBlankAs: string = typeof dl["showBlankAs"] === "string" ? dl["showBlankAs"] : "";
+    const dlTreatZeroAsBlank: boolean = dl["treatZeroAsBlank"] === true;
+
+    const labelFormatterRestore = (p: any) => {
+      const v = p?.value;
+      if (v === null || v === undefined || v === "") return dlShowBlankAs;
+      if (dlTreatZeroAsBlank) {
+        const numeric = typeof v === "number" ? v : Number(v);
+        if (!Number.isNaN(numeric) && numeric === 0) return dlShowBlankAs ?? "";
+      }
+      const name = p?.name ?? "";
+      const pct = p?.percent != null ? `${p.percent}%` : "";
+      return `${name} ${v}\n(${pct})`;
+    };
+
   // Restore base donut (pie) view
   const w0 = this.chartInstance.getWidth?.() ?? this.chartContainer.clientWidth ?? 0;
   const h0 = this.chartInstance.getHeight?.() ?? this.chartContainer.clientHeight ?? 0;
@@ -302,6 +356,7 @@ export class Visual implements powerbi.extensibility.IVisual {
   const inner0: number = clampNum(typeof spacing0.innerRadiusPercent === 'number' ? spacing0.innerRadiusPercent : 24, 5, 90);
   const ring0: number = clampNum(typeof spacing0.ringWidthPercent === 'number' ? spacing0.ringWidthPercent : 58, 4, 90);
   const outer0: number = clampNum(inner0 + ring0, inner0 + 1, 98);
+  const centerY0: number = clampNum(typeof spacing0.centerYPercent === 'number' ? spacing0.centerYPercent : this.centerYPercentSetting || 58, 0, 100);
     const smallMode0 = w0 < 260 || h0 < 220;
     const position0 = smallMode0 ? "inside" : "outside";
     this.chartInstance.setOption(
@@ -329,7 +384,7 @@ export class Visual implements powerbi.extensibility.IVisual {
             silent: true,
             z: 0,
             radius: [`${outer0}%`, `${Math.min(outer0 + 2, 98)}%`],
-            center: ["50%", "58%"],
+            center: ["50%", `${centerY0}%`],
             label: { show: false },
             labelLine: { show: false },
             data: [{ value: 1, itemStyle: { color: "transparent", borderColor: "#C7C9CC", borderWidth: 2 } }]
@@ -340,7 +395,7 @@ export class Visual implements powerbi.extensibility.IVisual {
             type: "pie",
             z: 1,
             radius: [`${inner0}%`, `${outer0}%`],
-            center: ["50%", "58%"],
+            center: ["50%", `${centerY0}%`],
             selectedMode: "single",
             selectedOffset: this.sliceSelectedOffset,
             startAngle: this.spinAngle % 360,
@@ -350,7 +405,20 @@ export class Visual implements powerbi.extensibility.IVisual {
             minShowLabelAngle: 8,
             labelLayout: this.makePolarLabelLayout(seriesLayoutRadial, seriesLayoutHorizontal, labelSideMargin + 4),
             data: (this.basePieData as any).map((d: any) => ({ ...d, itemStyle: { ...(d.itemStyle||{}), borderColor: "#FFFFFF", borderWidth: 2 } })),
-            label: { show: true, position: "outside", overflow: "break", lineHeight: labelLineHeight, width: Math.max(80, Math.floor(w0 * 0.25)) as any },
+            label: {
+              show: dlShow,
+              position: "outside",
+              color: dlColor,
+              fontFamily: dlFontFamily,
+              fontSize: dlFontSize,
+              fontStyle: dlFontStyle,
+              fontWeight: dlFontWeight,
+              formatter: labelFormatterRestore,
+              opacity: dlOpacity,
+              overflow: "break",
+              lineHeight: labelLineHeight,
+              width: Math.max(80, Math.floor(w0 * 0.25)) as any
+            },
             labelLine: labelLineBaseConfig,
             emphasis: { scale: true }
           } as any
@@ -646,7 +714,7 @@ export class Visual implements powerbi.extensibility.IVisual {
         if (measureCount <= 1) {
           const name = group?.name ?? "Group";
           const src = group?.values?.[0]?.values || [];
-          const color = this.seriesColors?.[name] || "#6688cc";
+          const color = this.seriesColorsL1?.[name] || "#6688cc";
           const sums = cat2Order.map((c2) => {
             let s = 0;
             for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
@@ -657,7 +725,7 @@ export class Visual implements powerbi.extensibility.IVisual {
           for (const mv of group.values || []) {
             const name = `${group?.name ?? "Group"} · ${mv?.source?.displayName ?? "Series"}`;
             const src = mv?.values || [];
-            const color = this.seriesColors?.[name] || "#6688cc";
+            const color = this.seriesColorsL1?.[name] || "#6688cc";
             const sums = cat2Order.map((c2) => {
               let s = 0;
               for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
@@ -672,7 +740,7 @@ export class Visual implements powerbi.extensibility.IVisual {
       for (const mv of measures) {
         const name = mv?.source?.displayName ?? "Series";
         const src = mv?.values || [];
-        const color = this.seriesColors?.[name] || "#6688cc";
+  const color = this.seriesColorsL1?.[name] || "#6688cc";
         const sums = cat2Order.map((c2) => {
           let s = 0;
           for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
@@ -884,18 +952,14 @@ export class Visual implements powerbi.extensibility.IVisual {
   const valuesCols: any = categorical.values || [];
   const groups = valuesCols?.grouped?.() as any[] | undefined;
 
-    const colorHelper = new ColorHelper((this.host as any).colorPalette, {
-      objectName: "dataPoint",
-      propertyName: "fill",
-    } as any);
+    // Color helpers replaced with explicit palette + persisted read
 
-    const resolveCategoryColor = (categoryName: string): string => {
+    const resolveCategoryColor = (categoryName: string, forDrill = false): string => {
       const name = (categoryName === null || categoryName === undefined || String(categoryName) === "") ? "(Blank)" : String(categoryName);
-      const objects: any = this.dataView?.metadata?.objects || {};
-      const dp: any = objects["dataPoint"] || {};
-      const userColor: string | undefined = dp?.[name]?.solid?.color || dp?.[name]?.fill?.solid?.color;
-      const color = userColor || this.seriesColors[name] || (colorHelper.getColorForSeriesValue(objects, name) as any);
-      this.seriesColors[name] = color;
+      const cache = forDrill ? this.seriesColorsL2 : this.seriesColorsL1;
+      const persisted = this.getPersistedFillForCategory(forDrill ? 1 : 0, forDrill ? "dataPointDrill" : "dataPoint", name);
+      const color = persisted || cache[name] || this.getPaletteColor(name);
+      cache[name] = color;
       return color;
     };
 
@@ -928,7 +992,7 @@ export class Visual implements powerbi.extensibility.IVisual {
       return {
         name,
         value,
-        itemStyle: { color: resolveCategoryColor(name) }
+        itemStyle: { color: resolveCategoryColor(name, false) }
       };
     });
 
@@ -1048,6 +1112,7 @@ export class Visual implements powerbi.extensibility.IVisual {
   const innerR: number = clampPct(typeof spacingObj.innerRadiusPercent === 'number' ? spacingObj.innerRadiusPercent : 24, 5, 90);
   const ringW: number = clampPct(typeof spacingObj.ringWidthPercent === 'number' ? spacingObj.ringWidthPercent : 58, 4, 90);
   const outerR: number = clampPct(innerR + ringW, innerR + 1, 98);
+  this.centerYPercentSetting = clampPct(typeof spacingObj.centerYPercent === 'number' ? spacingObj.centerYPercent : 58, 0, 100);
   const labelLineLengthMain = Math.max(4, this.labelLineLengthSetting);
   const labelLineLength2Main = Math.max(6, labelLineLengthMain + 6);
   const labelLineSmoothMain = Math.max(0, Math.min(1, this.labelCurveTensionSetting));
@@ -1089,7 +1154,7 @@ export class Visual implements powerbi.extensibility.IVisual {
           silent: true,
           z: 0,
           radius: [`${outerR}%`, `${Math.min(outerR + 2, 98)}%`],
-          center: ["50%", "58%"],
+          center: ["50%", `${this.centerYPercentSetting}%`],
           label: { show: false },
           labelLine: { show: false },
           data: [{ value: 1, itemStyle: { color: "transparent", borderColor: "#C7C9CC", borderWidth: 2 } }]
@@ -1100,7 +1165,7 @@ export class Visual implements powerbi.extensibility.IVisual {
           type: "pie",
           z: 1,
           radius: [`${innerR}%`, `${outerR}%`],
-          center: ["50%", "58%"],
+          center: ["50%", `${this.centerYPercentSetting}%`],
           selectedMode: "single",
           selectedOffset: this.sliceSelectedOffset,
           startAngle: this.spinAngle % 360,
@@ -1288,7 +1353,7 @@ export class Visual implements powerbi.extensibility.IVisual {
               silent: true,
               z: 0,
               radius: [`${outerR}%`, `${Math.min(outerR + 2, 98)}%`],
-              center: ["50%", "58%"],
+              center: ["50%", `${this.centerYPercentSetting}%`],
               label: { show: false },
               labelLine: { show: false },
               data: [{ value: 1, itemStyle: { color: "transparent", borderColor: "#C7C9CC", borderWidth: 2 } }]
@@ -1299,7 +1364,7 @@ export class Visual implements powerbi.extensibility.IVisual {
               type: "pie",
               z: 1,
               radius: [`${innerR}%`, `${outerR}%`],
-              center: ["50%", "58%"],
+              center: ["50%", `${this.centerYPercentSetting}%`],
               selectedMode: "single",
               selectedOffset: this.sliceSelectedOffset,
               // circular motion: spin the start angle +360 each drill
@@ -1332,7 +1397,10 @@ export class Visual implements powerbi.extensibility.IVisual {
               minShowLabelAngle: 8,
               labelLayout: this.makePolarLabelLayout(seriesLayoutRadialLocal, seriesLayoutHorizontalLocal, labelSideMarginLocal + 4),
               emphasis: { scale: true },
-              data: (pieData as any).map((d: any) => ({ ...d, itemStyle: { ...(d.itemStyle||{}), borderColor: "#FFFFFF", borderWidth: 2 } }))
+              data: (pieData as any).map((d: any) => ({
+                ...d,
+                itemStyle: { color: resolveCategoryColor(d.name, true), borderColor: "#FFFFFF", borderWidth: 2 }
+              }))
             } as any
           ],
           animationDurationUpdate: 900,
@@ -1414,26 +1482,60 @@ export class Visual implements powerbi.extensibility.IVisual {
   ): powerbi.VisualObjectInstanceEnumeration {
     const enumeration: powerbi.VisualObjectInstance[] = [];
     if (options.objectName === "dataPoint") {
-      // For pie, expose colors per Category[0] (slice)
+      // Always enumerate Category[0] (base level)
       const categorical = this.dataView?.categorical;
-      const cat1All = categorical?.categories?.[0]?.values || [];
-      const uniqueNames: string[] = [];
-      const seen = new Set<string>();
-      for (const v of (cat1All as any[])) {
-        const name = (v === null || v === undefined || String(v) === "") ? "(Blank)" : String(v);
-        if (!seen.has(name)) { seen.add(name); uniqueNames.push(name); }
+      const hostAny: any = this.host as any;
+      const cat0 = categorical?.categories?.[0];
+      if (!categorical || !cat0) return enumeration;
+      const values = cat0.values || [];
+      const firstIndexByName = new Map<string, number>();
+      for (let i = 0; i < values.length; i++) {
+        const name = (values[i] === null || values[i] === undefined || String(values[i]) === "") ? "(Blank)" : String(values[i]);
+        if (!firstIndexByName.has(name)) firstIndexByName.set(name, i);
       }
-      for (const name of uniqueNames) {
-        enumeration.push({
-          objectName: "dataPoint",
-          displayName: name,
-          properties: {
-            fill: { solid: { color: this.seriesColors?.[name] ?? "#3366CC" } },
-          },
-          selector: dataViewWildcard.createDataViewWildcardSelector(
-            dataViewWildcard.DataViewWildcardMatchingOption.InstancesAndTotals
-          ),
-        });
+      for (const [name, idx] of firstIndexByName) {
+        const selId = hostAny?.createSelectionIdBuilder?.()?.withCategory(cat0 as any, idx)?.createSelectionId?.();
+        const selector = selId?.getSelector ? selId.getSelector() : selId;
+        if (selector) {
+          enumeration.push({
+            objectName: "dataPoint",
+            displayName: name,
+            properties: { fill: { solid: { color: this.seriesColorsL1?.[name] ?? "#3366CC" } } },
+            selector: selector as any
+          });
+        }
+      }
+    }
+
+    if (options.objectName === "dataPointDrill") {
+      // Always enumerate Category[1] (drill level)
+      const categorical = this.dataView?.categorical;
+      const hostAny: any = this.host as any;
+      const cat1 = categorical?.categories?.[1];
+      if (!categorical || !cat1) return enumeration;
+      const values = cat1.values || [];
+      const firstIndexByName = new Map<string, number>();
+      for (let i = 0; i < values.length; i++) {
+        const name = (values[i] === null || values[i] === undefined || String(values[i]) === "") ? "(Blank)" : String(values[i]);
+        if (!firstIndexByName.has(name)) firstIndexByName.set(name, i);
+      }
+      // Show only visible drill categories if we have them; else show all unique level-2
+      const namesToShow = (this.currentCategories && this.currentCategories.length > 0)
+        ? this.currentCategories.map((n: any) => String(n))
+        : Array.from(firstIndexByName.keys());
+      for (const name of namesToShow) {
+        const idx = firstIndexByName.get(String(name));
+        if (idx === undefined) continue;
+        const selId = hostAny?.createSelectionIdBuilder?.()?.withCategory(cat1 as any, idx)?.createSelectionId?.();
+        const selector = selId?.getSelector ? selId.getSelector() : selId;
+        if (selector) {
+          enumeration.push({
+            objectName: "dataPointDrill",
+            displayName: name,
+            properties: { fill: { solid: { color: this.seriesColorsL2?.[name] ?? "#3366CC" } } },
+            selector: selector as any
+          });
+        }
       }
     }
 
@@ -1525,7 +1627,8 @@ export class Visual implements powerbi.extensibility.IVisual {
         displayName: "Spacing",
         properties: {
           innerRadiusPercent: typeof sp?.innerRadiusPercent === 'number' ? sp.innerRadiusPercent : 24,
-          ringWidthPercent: typeof sp?.ringWidthPercent === 'number' ? sp.ringWidthPercent : 58
+          ringWidthPercent: typeof sp?.ringWidthPercent === 'number' ? sp.ringWidthPercent : 58,
+          centerYPercent: typeof sp?.centerYPercent === 'number' ? sp.centerYPercent : this.centerYPercentSetting
         },
         selector: undefined as any
       });
@@ -1571,6 +1674,21 @@ export class Visual implements powerbi.extensibility.IVisual {
           borderColor: { solid: { color: sel?.borderColor?.solid?.color || "#0078D4" } },
           borderWidth: typeof sel?.borderWidth === "number" ? sel.borderWidth : 1.5,
           opacity: typeof sel?.opacity === "number" ? sel.opacity : 40
+        },
+        selector: undefined as any
+      });
+    }
+    if (options.objectName === "labelTuning") {
+      const obj: any = (this.dataView?.metadata?.objects as any)?.labelTuning || {};
+      enumeration.push({
+        objectName: "labelTuning",
+        displayName: "Label & Line Tuning",
+        properties: {
+          lineLength: typeof obj?.lineLength === "number" ? obj.lineLength : this.labelLineLengthSetting,
+          curveTension: typeof obj?.curveTension === "number" ? obj.curveTension : this.labelCurveTensionSetting,
+          textSpacing: typeof obj?.textSpacing === "number" ? obj.textSpacing : this.labelTextSpacingSetting,
+          columnOffset: typeof obj?.columnOffset === "number" ? obj.columnOffset : this.labelColumnOffsetSetting,
+          sidePadding: typeof obj?.sidePadding === "number" ? obj.sidePadding : this.labelSidePaddingSetting
         },
         selector: undefined as any
       });

@@ -91,6 +91,15 @@
         }
       }
     },
+    "dataPointDrill": {
+      "displayName": "Data colors (Drill)",
+      "properties": {
+        "fill": {
+          "displayName": "Color",
+          "type": { "fill": { "solid": { "color": true } } }
+        }
+      }
+    },
     "dataLabels": {
       "displayName": "Data Labels",
       "properties": {
@@ -309,6 +318,11 @@
         },
         "ringWidthPercent": {
           "displayName": "Ring width (%)",
+          "type": { "numeric": true }
+        },
+        "centerYPercent": {
+          "displayName": "Vertical position (%)",
+          "description": "Centers the donut vertically: 0 = top, 100 = bottom",
           "type": { "numeric": true }
         }
       }
