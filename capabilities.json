@@ -28,6 +28,7 @@
     }
   ],
   "supportsHighlight": true,
+  "supportsMultiVisualSelection": true,
   "objects": {
     "hoverStyle": {
       "displayName": "Hover Style",

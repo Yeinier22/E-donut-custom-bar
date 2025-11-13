@@ -29,6 +29,8 @@ import * as echarts from "echarts";
 import powerbi from "powerbi-visuals-api";
 // import { ColorHelper } from "powerbi-visuals-utils-colorutils";
 import { dataViewWildcard } from "powerbi-visuals-utils-dataviewutils";
+import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
+import { VisualFormattingSettingsModel } from "./settings";
 import "./../style/visual.less";
 
 // Ensure solid color (no alpha). If input has rgba/argb/hex with alpha, drop alpha.
@@ -68,6 +70,8 @@ export class Visual implements powerbi.extensibility.IVisual {
   private chartContainer: HTMLDivElement;
   private chartInstance: echarts.ECharts;
   private host: powerbi.extensibility.IVisualHost;
+  private formattingSettings: VisualFormattingSettingsModel;
+  private formattingSettingsService: FormattingSettingsService;
   private seriesColorsL1: { [key: string]: string } = {};
   private seriesColorsL2: { [key: string]: string } = {};
   private getPaletteColor(name: string): string {
@@ -318,7 +322,7 @@ export class Visual implements powerbi.extensibility.IVisual {
       length: labelLineLength,
       length2: labelLineLength2,
       smooth: labelLineSmooth,
-      lineStyle: { width: 0.8, color: '#666666', type: 'solid' }
+      lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' }
     };
 
     // Data Labels styling and formatter (match base update)
@@ -821,6 +825,8 @@ export class Visual implements powerbi.extensibility.IVisual {
     options.element.appendChild(this.chartContainer);
     this.chartInstance = echarts.init(this.chartContainer);
     this.host = options.host;
+    this.formattingSettingsService = new FormattingSettingsService();
+    this.formattingSettings = new VisualFormattingSettingsModel();
   }
 
   public update(options: powerbi.extensibility.visual.VisualUpdateOptions) {
@@ -830,6 +836,9 @@ export class Visual implements powerbi.extensibility.IVisual {
       this.chartInstance.clear();
       return;
     }
+
+    // Populate formatting settings from dataView
+    this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, dataView);
 
     const labelTuneObj: any = (dataView.metadata?.objects as any)?.labelTuning || {};
     const clampNumeric = (value: any, fallback: number, min: number, max: number) =>
@@ -1193,7 +1202,7 @@ export class Visual implements powerbi.extensibility.IVisual {
             width: Math.max(80, Math.floor(w * 0.25)) as any,
             rich: { }
           },
-          labelLine: { show: true, length: labelLineLengthMain, length2: labelLineLength2Main, smooth: labelLineSmoothMain, lineStyle: { width: 0.8, color: '#666666', type: 'solid' } },
+          labelLine: { show: true, length: labelLineLengthMain, length2: labelLineLength2Main, smooth: labelLineSmoothMain, lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' } },
           avoidLabelOverlap: true,
           minShowLabelAngle: 8,
           labelLayout: this.makePolarLabelLayout(seriesLayoutRadialMain, seriesLayoutHorizontalMain, labelSideMarginMain + 4),
@@ -1392,7 +1401,7 @@ export class Visual implements powerbi.extensibility.IVisual {
                 lineHeight: labelLineHeightLocal,
                 width: Math.max(80, Math.floor(w * 0.25)) as any
               },
-              labelLine: { show: true, length: labelLineLengthLocal, length2: labelLineLength2Local, smooth: labelLineSmoothLocal, lineStyle: { width: 0.8, color: '#666666', type: 'solid' } },
+              labelLine: { show: true, length: labelLineLengthLocal, length2: labelLineLength2Local, smooth: labelLineSmoothLocal, lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' } },
               avoidLabelOverlap: true,
               minShowLabelAngle: 8,
               labelLayout: this.makePolarLabelLayout(seriesLayoutRadialLocal, seriesLayoutHorizontalLocal, labelSideMarginLocal + 4),
@@ -1694,6 +1703,10 @@ export class Visual implements powerbi.extensibility.IVisual {
       });
     }
     return enumeration;
+  }
+
+  public getFormattingModel(): powerbi.visuals.FormattingModel {
+    return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
   }
 
   public destroy() {

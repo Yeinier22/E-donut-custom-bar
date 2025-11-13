@@ -1,29 +1,3 @@
-/*
- *  Power BI Visualizations
- *
- *  Copyright (c) Microsoft Corporation
- *  All rights reserved.
- *  MIT License
- *
- *  Permission is hereby granted, free of charge, to any person obtaining a copy
- *  of this software and associated documentation files (the ""Software""), to deal
- *  in the Software without restriction, including without limitation the rights
- *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- *  copies of the Software, and to permit persons to whom the Software is
- *  furnished to do so, subject to the following conditions:
- *
- *  The above copyright notice and this permission notice shall be included in
- *  all copies or substantial portions of the Software.
- *
- *  THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- *  THE SOFTWARE.
- */
-
 "use strict";
 
 import { formattingSettings } from "powerbi-visuals-utils-formattingmodel";
@@ -33,51 +7,175 @@ import FormattingSettingsSlice = formattingSettings.Slice;
 import FormattingSettingsModel = formattingSettings.Model;
 
 /**
- * Data Point Formatting Card
+ * Data Labels Formatting Card
  */
-class DataPointCardSettings extends FormattingSettingsCard {
-    defaultColor = new formattingSettings.ColorPicker({
-        name: "defaultColor",
-        displayName: "Default color",
-        value: { value: "" }
+class DataLabelsCardSettings extends FormattingSettingsCard {
+    show = new formattingSettings.ToggleSwitch({
+        name: "show",
+        displayName: "Show Data Labels",
+        value: false
     });
 
-    showAllDataPoints = new formattingSettings.ToggleSwitch({
-        name: "showAllDataPoints",
-        displayName: "Show all",
-        value: true
+    position = new formattingSettings.ItemDropdown({
+        name: "position",
+        displayName: "Position",
+        items: [
+            { displayName: "Auto", value: "auto" },
+            { displayName: "Inside end", value: "insideEnd" },
+            { displayName: "Outside end", value: "outsideEnd" },
+            { displayName: "Inside center", value: "insideCenter" },
+            { displayName: "Inside base", value: "insideBase" }
+        ],
+        value: { displayName: "Auto", value: "auto" }
     });
 
-    fill = new formattingSettings.ColorPicker({
-        name: "fill",
-        displayName: "Fill",
-        value: { value: "" }
-    });
-
-    fillRule = new formattingSettings.ColorPicker({
-        name: "fillRule",
-        displayName: "Color saturation",
-        value: { value: "" }
+    fontFamily = new formattingSettings.TextInput({
+        name: "fontFamily",
+        displayName: "Font Family",
+        value: "Segoe UI",
+        placeholder: "Segoe UI"
     });
 
     fontSize = new formattingSettings.NumUpDown({
         name: "fontSize",
-        displayName: "Text Size",
-        value: 12
+        displayName: "Font Size",
+        value: 11
+    });
+
+    color = new formattingSettings.ColorPicker({
+        name: "color",
+        displayName: "Color",
+        value: { value: "#444444" }
+    });
+
+    name: string = "dataLabels";
+    displayName: string = "Data Labels";
+    slices: Array<FormattingSettingsSlice> = [this.show, this.position, this.fontFamily, this.fontSize, this.color];
+}
+
+/**
+ * Data Point Formatting Card
+ */
+class DataPointCardSettings extends FormattingSettingsCard {
+    fill = new formattingSettings.ColorPicker({
+        name: "fill",
+        displayName: "Color",
+        value: { value: "" }
     });
 
     name: string = "dataPoint";
     displayName: string = "Data colors";
-    slices: Array<FormattingSettingsSlice> = [this.defaultColor, this.showAllDataPoints, this.fill, this.fillRule, this.fontSize];
+    slices: Array<FormattingSettingsSlice> = [this.fill];
 }
 
 /**
-* visual settings model class
-*
-*/
-export class VisualFormattingSettingsModel extends FormattingSettingsModel {
-    // Create formatting settings model formatting cards
-    dataPointCard = new DataPointCardSettings();
+ * Spacing Formatting Card
+ */
+class SpacingCardSettings extends FormattingSettingsCard {
+    innerRadiusPercent = new formattingSettings.NumUpDown({
+        name: "innerRadiusPercent",
+        displayName: "Inner radius (%)",
+        value: 60
+    });
 
-    cards = [this.dataPointCard];
+    ringWidthPercent = new formattingSettings.NumUpDown({
+        name: "ringWidthPercent",
+        displayName: "Ring width (%)",
+        value: 35
+    });
+
+    centerYPercent = new formattingSettings.NumUpDown({
+        name: "centerYPercent",
+        displayName: "Vertical position (%)",
+        value: 50
+    });
+
+    name: string = "spacing";
+    displayName: string = "Spacing";
+    slices: Array<FormattingSettingsSlice> = [this.innerRadiusPercent, this.ringWidthPercent, this.centerYPercent];
+}
+
+/**
+ * Legend Formatting Card
+ */
+class LegendCardSettings extends FormattingSettingsCard {
+    show = new formattingSettings.ToggleSwitch({
+        name: "show",
+        displayName: "Show legend",
+        value: true
+    });
+
+    position = new formattingSettings.ItemDropdown({
+        name: "position",
+        displayName: "Position",
+        items: [
+            { displayName: "Top", value: "top" },
+            { displayName: "Bottom", value: "bottom" },
+            { displayName: "Left", value: "left" },
+            { displayName: "Right", value: "right" }
+        ],
+        value: { displayName: "Right", value: "right" }
+    });
+
+    fontSize = new formattingSettings.NumUpDown({
+        name: "fontSize",
+        displayName: "Font Size",
+        value: 10
+    });
+
+    name: string = "legend";
+    displayName: string = "Legend";
+    slices: Array<FormattingSettingsSlice> = [this.show, this.position, this.fontSize];
+}
+
+/**
+ * Label Tuning Formatting Card
+ */
+class LabelTuningCardSettings extends FormattingSettingsCard {
+    lineLength = new formattingSettings.NumUpDown({
+        name: "lineLength",
+        displayName: "Line Length",
+        value: 20
+    });
+
+    curveTension = new formattingSettings.NumUpDown({
+        name: "curveTension",
+        displayName: "Curve Tension",
+        value: 0.9
+    });
+
+    textSpacing = new formattingSettings.NumUpDown({
+        name: "textSpacing",
+        displayName: "Text Line Spacing",
+        value: 4
+    });
+
+    columnOffset = new formattingSettings.NumUpDown({
+        name: "columnOffset",
+        displayName: "Label Column Offset (px)",
+        value: 0
+    });
+
+    sidePadding = new formattingSettings.NumUpDown({
+        name: "sidePadding",
+        displayName: "Side Padding (px)",
+        value: 0
+    });
+
+    name: string = "labelTuning";
+    displayName: string = "Label & Line Tuning";
+    slices: Array<FormattingSettingsSlice> = [this.lineLength, this.curveTension, this.textSpacing, this.columnOffset, this.sidePadding];
+}
+
+/**
+ * Visual settings model class
+ */
+export class VisualFormattingSettingsModel extends FormattingSettingsModel {
+    dataLabelsCard = new DataLabelsCardSettings();
+    dataPointCard = new DataPointCardSettings();
+    spacingCard = new SpacingCardSettings();
+    legendCard = new LegendCardSettings();
+    labelTuningCard = new LabelTuningCardSettings();
+
+    cards = [this.dataLabelsCard, this.dataPointCard, this.spacingCard, this.legendCard, this.labelTuningCard];
 }
