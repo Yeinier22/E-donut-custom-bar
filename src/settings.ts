@@ -16,17 +16,24 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
         value: false
     });
 
-    position = new formattingSettings.ItemDropdown({
-        name: "position",
-        displayName: "Position",
+    labelPlacement = new formattingSettings.ItemDropdown({
+        name: "labelPlacement",
+        displayName: "Label Placement",
         items: [
-            { displayName: "Auto", value: "auto" },
-            { displayName: "Inside end", value: "insideEnd" },
-            { displayName: "Outside end", value: "outsideEnd" },
-            { displayName: "Inside center", value: "insideCenter" },
-            { displayName: "Inside base", value: "insideBase" }
+            { displayName: "Inside", value: "inside" },
+            { displayName: "Outside", value: "outside" }
         ],
-        value: { displayName: "Auto", value: "auto" }
+        value: { displayName: "Outside", value: "outside" }
+    });
+
+    placementMode = new formattingSettings.ItemDropdown({
+        name: "placementMode",
+        displayName: "Placement Mode",
+        items: [
+            { displayName: "Align", value: "align" },
+            { displayName: "Wrap", value: "wrap" }
+        ],
+        value: { displayName: "Wrap", value: "wrap" }
     });
 
     fontFamily = new formattingSettings.TextInput({
@@ -83,7 +90,8 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
     displayName: string = "Data Labels";
     slices: Array<FormattingSettingsSlice> = [
         this.show,
-        this.position,
+        this.labelPlacement,
+        this.placementMode,
         this.fontFamily,
         this.fontSize,
         this.color,

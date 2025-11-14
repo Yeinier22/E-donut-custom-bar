@@ -414,6 +414,9 @@ export class Visual implements powerbi.extensibility.IVisual {
     const dlOpacity: number = Math.max(0, Math.min(1, 1 - dlTransparency / 100));
     const dlShowBlankAs: string = typeof dl["showBlankAs"] === "string" ? dl["showBlankAs"] : "";
     const dlTreatZeroAsBlank: boolean = dl["treatZeroAsBlank"] === true;
+    const dlLabelPlacement: string = (dl["labelPlacement"] as string) || "outside"; // inside|outside
+    const dlPlacementMode: string = (dl["placementMode"] as string) || "wrap"; // align|wrap
+    const isOutside = dlLabelPlacement !== "inside";
     const dlDisplayUnit: string = dl["displayUnit"] || "auto";
     const dlValueDecimals: number = typeof dl["valueDecimals"] === "number" ? dl["valueDecimals"] : 2;
     const dlValueType: string = (dl["valueType"] as string) || "auto";
@@ -469,7 +472,8 @@ export class Visual implements powerbi.extensibility.IVisual {
       const dec = dlValueDecimals;
       const vtype = dlValueType;
       const valueText = hasNumeric ? formatNumberWithUnitRestore(numeric, unit, dec, vtype) : "";
-      return hasNumeric ? `${name} ${valueText}` : name;
+      const pct = (p?.percent != null) ? `(${p.percent}%)` : "";
+      return hasNumeric ? (pct ? `${name} ${valueText}\n${pct}` : `${name} ${valueText}`) : name;
     };
 
   // Restore base donut (pie) view
@@ -532,7 +536,7 @@ export class Visual implements powerbi.extensibility.IVisual {
             data: (this.basePieData as any).map((d: any) => ({ ...d, itemStyle: { ...(d.itemStyle||{}), borderColor: "#FFFFFF", borderWidth: 2 } })),
             label: {
               show: dlShow,
-              position: "outside",
+              position: isOutside ? "outside" : "inside",
               color: dlColor,
               fontFamily: dlFontFamily,
               fontSize: dlFontSize,
@@ -540,13 +544,13 @@ export class Visual implements powerbi.extensibility.IVisual {
               fontWeight: dlFontWeight,
               formatter: labelFormatterRestore,
               opacity: dlOpacity,
-              overflow: "break",
+              overflow: dlPlacementMode === "wrap" ? "break" : "truncate",
               lineHeight: labelLineHeight,
-              width: Math.max(80, Math.floor(w0 * 0.25)) as any
+              ...(dlPlacementMode === "wrap" ? { width: Math.max(80, Math.floor(w0 * 0.25)) as any } : {})
             },
-            labelLine: labelLineBaseConfig,
-            // Goal: like ZoomCharts, keep every label at the same radial distance while allowing vertical shifts
-            labelLayout: this.makePolarLabelLayout(seriesLayoutRadial, seriesLayoutHorizontal, labelSideMargin),
+            labelLine: { ...labelLineBaseConfig, show: isOutside },
+            // Keep constant radial distance layout only when outside
+            labelLayout: isOutside ? this.makePolarLabelLayout(seriesLayoutRadial, seriesLayoutHorizontal, labelSideMargin) : undefined,
             emphasis: { scale: true }
           } as any
         ]
@@ -1023,7 +1027,8 @@ export class Visual implements powerbi.extensibility.IVisual {
     // Data Labels settings
     const dl: any = (dataView.metadata?.objects as any)?.dataLabels || {};
     const dlShow: boolean = dl["show"] !== false;
-    const dlPositionSetting: string = dl["position"] || "auto";
+    const dlLabelPlacement: string = (dl["labelPlacement"] as string) || "outside"; // inside|outside
+    const dlPlacementMode: string = (dl["placementMode"] as string) || "wrap"; // align|wrap
     const dlShowBlankAs: string = (typeof dl["showBlankAs"] === "string") ? dl["showBlankAs"] : "";
     const dlTreatZeroAsBlank: boolean = dl["treatZeroAsBlank"] === true;
     const dlDisplayUnit: string = dl["displayUnit"] || "auto";
@@ -1133,20 +1138,12 @@ export class Visual implements powerbi.extensibility.IVisual {
       const dec = dlValueDecimals;
       const vtype = dlValueType;
       const valueText = hasNumeric ? formatNumberWithUnit(n, unit, dec, vtype) : "";
-      return hasNumeric ? `${name} ${valueText}` : name;
+      const pct = (p?.percent != null) ? `(${p.percent}%)` : "";
+      if (!hasNumeric) return name;
+      return pct ? `${name} ${valueText}\n${pct}` : `${name} ${valueText}`;
     };
 
-    const mapLabelPosition = (pos: string): any => {
-      switch (pos) {
-        case "insideEnd": return "insideTop"; // near end inside (vertical bars)
-        case "outsideEnd": return "top";     // outside end
-        case "insideCenter": return "inside";
-        case "insideBase": return "insideBottom";
-        case "auto":
-        default: return "top";
-      }
-    };
-    const dlPosition = mapLabelPosition(dlPositionSetting);
+    const isOutside = dlLabelPlacement !== "inside";
 
   const valuesCols: any = categorical.values || [];
   const groups = valuesCols?.grouped?.() as any[] | undefined;
@@ -1290,18 +1287,7 @@ export class Visual implements powerbi.extensibility.IVisual {
 
   // no grid for pie
 
-    const pieLabelPosition = (() => {
-      switch (dlPositionSetting) {
-        case "insideCenter":
-        case "insideBase":
-        case "insideEnd":
-          return "inside";
-        case "outsideEnd":
-        case "auto":
-        default:
-          return "outside";
-      }
-    })();
+    // label placement handled via isOutside; no pieLabelPosition mapping needed
 
   const w = this.chartInstance.getWidth?.() ?? this.chartContainer.clientWidth ?? 0;
   const h = this.chartInstance.getHeight?.() ?? this.chartContainer.clientHeight ?? 0;
@@ -1372,7 +1358,7 @@ export class Visual implements powerbi.extensibility.IVisual {
           universalTransition: { enabled: true },
           label: {
             show: dlShow,
-            position: "outside",
+            position: isOutside ? "outside" : "inside",
             color: dlColor,
             fontFamily: dlFontFamily,
             fontSize: dlFontSize,
@@ -1380,13 +1366,13 @@ export class Visual implements powerbi.extensibility.IVisual {
             fontWeight: dlFontWeight,
             formatter: (p: any) => buildLabelText(p),
             opacity: dlOpacity,
-            overflow: "break",
+            overflow: dlPlacementMode === "wrap" ? "break" : "truncate",
             lineHeight: labelLineHeightMain,
-            width: Math.max(80, Math.floor(w * 0.25)) as any,
+            ...(dlPlacementMode === "wrap" ? { width: Math.max(80, Math.floor(w * 0.25)) as any } : {}),
             rich: { }
           },
           labelLine: {
-            show: true,
+            show: isOutside,
             length: labelLineLengthMain,
             length2: labelLineLength2Main,
             smooth: labelLineSmoothMain > 0 ? labelLineSmoothMain : false,
@@ -1397,8 +1383,8 @@ export class Visual implements powerbi.extensibility.IVisual {
           },
           avoidLabelOverlap: true,
           minShowLabelAngle: 8,
-          // Goal: like ZoomCharts, keep every label at the same radial distance while allowing vertical shifts
-          labelLayout: this.makePolarLabelLayout(seriesLayoutRadialMain, seriesLayoutHorizontalMain, labelSideMarginMain),
+          // Keep label layout for outside placement only
+          labelLayout: isOutside ? this.makePolarLabelLayout(seriesLayoutRadialMain, seriesLayoutHorizontalMain, labelSideMarginMain) : undefined,
           emphasis: { scale: true },
           data: (basePieData as any).map((d: any) => ({ ...d, itemStyle: { ...(d.itemStyle||{}), borderColor: "#FFFFFF", borderWidth: 2 } }))
         } as any
@@ -1577,7 +1563,7 @@ export class Visual implements powerbi.extensibility.IVisual {
               universalTransition: { enabled: true, divideShape: "clone" },
               label: {
                 show: dlShow,
-                position: "outside",
+                position: isOutside ? "outside" : "inside",
                 color: dlColor,
                 fontFamily: dlFontFamily,
                 fontSize: dlFontSize,
@@ -1599,14 +1585,14 @@ export class Visual implements powerbi.extensibility.IVisual {
                   return hasNumeric ? `${name} ${valueText}\n${pct}` : name;
                 },
                 opacity: dlOpacity,
-                overflow: "break",
+                overflow: dlPlacementMode === "wrap" ? "break" : "truncate",
                 lineHeight: labelLineHeightLocal,
-                width: Math.max(80, Math.floor(w * 0.25)) as any
+                ...(dlPlacementMode === "wrap" ? { width: Math.max(80, Math.floor(w * 0.25)) as any } : {})
               },
-              labelLine: { show: true, length: labelLineLengthLocal, length2: labelLineLength2Local, smooth: labelLineSmoothLocal, lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' } },
+              labelLine: { show: isOutside, length: labelLineLengthLocal, length2: labelLineLength2Local, smooth: labelLineSmoothLocal, lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' } },
               avoidLabelOverlap: true,
               minShowLabelAngle: 8,
-              labelLayout: this.makePolarLabelLayout(seriesLayoutRadialLocal, seriesLayoutHorizontalLocal, labelSideMarginLocal + 4),
+              labelLayout: isOutside ? this.makePolarLabelLayout(seriesLayoutRadialLocal, seriesLayoutHorizontalLocal, labelSideMarginLocal + 4) : undefined,
               emphasis: { scale: true },
               data: (pieData as any).map((d: any) => ({
                 ...d,
