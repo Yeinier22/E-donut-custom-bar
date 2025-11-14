@@ -117,11 +117,14 @@ export class Visual implements powerbi.extensibility.IVisual {
   private spinAngle: number = 90; // starting angle for pie; we rotate +360 on drill for circular motion
   private sliceSelectedOffset: number = 14; // offset distance when selecting a slice in drill
   private labelLineLengthSetting: number = 20;
+  private curveLineSetting: number = 0;
   private labelCurveTensionSetting: number = 0.9;
   private labelTextSpacingSetting: number = 4;
   private labelColumnOffsetSetting: number = 0;
   private labelSidePaddingSetting: number = 0;
   private centerYPercentSetting: number = 58;
+
+  // Using ECharts native labelLine + labelLayout instead of custom drawing
 
   // Enhanced polar label layout with dynamic sizing and Power BI-style positioning
   private makePolarLabelLayout(radialLen: number, horizLen: number, sideMargin = 12) {
@@ -138,44 +141,93 @@ export class Visual implements powerbi.extensibility.IVisual {
   const cyPct = Math.max(0, Math.min(100, this.centerYPercentSetting || 58)) / 100;
   const cy: number = layout.cy ?? h * cyPct;
         const rOuter: number = layout.r ?? Math.min(w, h) * 0.35;
+        const rInner: number = layout.r0 ?? 0; // Inner radius
         const a0: number = layout.startAngle ?? 0;
         const a1: number = layout.endAngle ?? 0;
+        
         const theta = (a0 + a1) / 2; // mid-angle in rad
         const cosT = Math.cos(theta);
         const sinT = Math.sin(theta);
 
+        // Calculate slice angle in degrees to detect small slices
+        const sliceAngleDeg = Math.abs((a1 - a0) * (180 / Math.PI));
+        const isSmallSlice = sliceAngleDeg < 15; // Small slice detection
+
         // Dynamic sizing based on container dimensions so small multiples stay readable
   const scaleFactor = 1;
-        const adaptiveRadialLen = Math.max(6, radialLen * scaleFactor);
+        const adaptiveRadialLen = Math.max(8, radialLen * scaleFactor); // Increased from 6 to 8
         const adaptiveHorizLen = Math.max(10, horizLen * scaleFactor);
         const adaptiveMargin = Math.max(10, sideMargin * scaleFactor);
 
     const isRightSide = cosT >= 0;
 
-    // Anchor on the arc rim (Power BI sample uses arc.centroid)
-    const arcPoint: [number, number] = [cx + rOuter * cosT, cy + rOuter * sinT];
+    // For donuts, the line MUST start from the outer radius, not inner
+    // This is the key fix - always use rOuter for line start point
+    const lineStartRadius = rOuter;
+    
+    // Start point of label line (from outer edge of the donut)
+    const arcPoint: [number, number] = [cx + lineStartRadius * cosT, cy + lineStartRadius * sinT];
 
     const curveTension = Math.max(0.1, Math.min(2, this.labelCurveTensionSetting || 0.9));
-    const controlRadius = rOuter + adaptiveRadialLen * curveTension;
-    const outerPoint: [number, number] = [cx + controlRadius * cosT, cy + controlRadius * sinT];
 
         const labelW = params?.labelRect?.width || 0;
         const labelH = params?.labelRect?.height || 0;
+
+    // Calculate initial outer point for label line
+    let baseControlRadius = rOuter + (adaptiveRadialLen * curveTension);
+    let outerPoint: [number, number] = [cx + baseControlRadius * cosT, cy + baseControlRadius * sinT];
+    
+    // Inner radius protection: check if outer point is inside the donut hole
+    const outerPointDist = Math.sqrt(
+      Math.pow(outerPoint[0] - cx, 2) + Math.pow(outerPoint[1] - cy, 2)
+    );
+    
+    // If outer point is inside inner radius + safety margin, push it out
+    const safeInnerBoundary = rInner * 1.2; // 20% safety margin
+    let needsAdjustment = false;
+    
+    if (outerPointDist < safeInnerBoundary || isSmallSlice) {
+      // Calculate how much we need to push out
+      const targetDistance = Math.max(safeInnerBoundary, rOuter + adaptiveRadialLen);
+      baseControlRadius = targetDistance + (labelH * 0.3); // Add extra space for label height
+      outerPoint = [cx + baseControlRadius * cosT, cy + baseControlRadius * sinT];
+      needsAdjustment = true;
+    }
 
   const safeMinX = adaptiveMargin + Math.max(0, this.labelSidePaddingSetting || 0);
   const safeMaxX = w - (adaptiveMargin + Math.max(0, this.labelSidePaddingSetting || 0));
         const safeMinCenterY = adaptiveMargin + labelH / 2;
         const safeMaxCenterY = Math.max(safeMinCenterY, h - adaptiveMargin - labelH / 2);
 
-        // Vertical placement keeps the callout aligned with the slice mid angle, clamped to the viewport
+        // Vertical placement: adjust if label would overlap donut
         let labelCenterY = outerPoint[1];
+        
+        // If we needed adjustment, also shift vertically away from center
+        if (needsAdjustment) {
+          // Determine if slice is in upper or lower half
+          const isUpperHalf = sinT < 0; // negative sin means upper half
+          
+          // Push label away from center vertically
+          const verticalShift = labelH * 1.0; // Full label height shift
+          
+          if (isUpperHalf) {
+            // Upper half: push up (more negative Y)
+            labelCenterY = labelCenterY - verticalShift;
+          } else {
+            // Lower half: push down (more positive Y)
+            labelCenterY = labelCenterY + verticalShift;
+          }
+        }
+        
         labelCenterY = Math.max(safeMinCenterY, Math.min(labelCenterY, safeMaxCenterY));
         const labelTop = labelCenterY - labelH / 2;
 
   const lineLengthSetting = Math.max(6, this.labelLineLengthSetting || adaptiveHorizLen);
 
         // Column target pushes labels away from donut similar to the shared references
-  const desiredOffset = rOuter + adaptiveRadialLen + lineLengthSetting + (this.labelColumnOffsetSetting || 0);
+        // Add extra push for labels that might overlap with inner radius
+        const extraPush = rInner > 0 ? Math.max(0, rInner * 0.3) : 0; // 30% of inner radius as safety
+  const desiredOffset = rOuter + adaptiveRadialLen + lineLengthSetting + (this.labelColumnOffsetSetting || 0) + extraPush;
         let labelLeft: number;
 
         if (isRightSide) {
@@ -198,13 +250,39 @@ export class Visual implements powerbi.extensibility.IVisual {
         const lineEndX = isRightSide ? labelLeft : labelLeft + labelW;
         const lineEndY = labelCenterY;
 
+        // Calculate optimal angle for line start based on label position
+        // This creates dynamic connection points like native Power BI
+        const targetAngle = Math.atan2(lineEndY - cy, lineEndX - cx);
+        
+        // Clamp the angle within the slice's angular range
+        let optimalAngle = targetAngle;
+        if (a0 < a1) {
+          optimalAngle = Math.max(a0, Math.min(targetAngle, a1));
+        } else {
+          // Handle wrap-around case
+          if (targetAngle >= a0 || targetAngle <= a1) {
+            optimalAngle = targetAngle;
+          } else {
+            optimalAngle = Math.abs(targetAngle - a0) < Math.abs(targetAngle - a1) ? a0 : a1;
+          }
+        }
+        
+        const optimalCos = Math.cos(optimalAngle);
+        const optimalSin = Math.sin(optimalAngle);
+        
+        // Recalculate arcPoint with optimal angle
+        const dynamicArcPoint: [number, number] = [
+          cx + lineStartRadius * optimalCos, 
+          cy + lineStartRadius * optimalSin
+        ];
+
         const controlPoint: [number, number] = [
-          cx + (rOuter + adaptiveRadialLen * Math.max(0.2, Math.min(1.5, curveTension * 0.9))) * cosT,
-          cy + (rOuter + adaptiveRadialLen * Math.max(0.2, Math.min(1.5, curveTension * 0.9))) * sinT
+          cx + (rOuter + adaptiveRadialLen * Math.max(0.2, Math.min(1.5, curveTension * 0.9))) * optimalCos,
+          cy + (rOuter + adaptiveRadialLen * Math.max(0.2, Math.min(1.5, curveTension * 0.9))) * optimalSin
         ];
 
         const linePoints: Array<[number, number]> = [
-          arcPoint,
+          dynamicArcPoint,
           controlPoint,
           [lineEndX, lineEndY]
         ];
@@ -308,20 +386,18 @@ export class Visual implements powerbi.extensibility.IVisual {
       else legendLeft = "center";
     }
 
-    const labelLineLength = Math.max(4, this.labelLineLengthSetting);
+    const labelLineLength = Math.max(4, this.labelLineLengthSetting || 18);
     const labelLineLength2 = Math.max(6, labelLineLength + 6);
-    const labelLineSmooth = Math.max(0, Math.min(1, this.labelCurveTensionSetting));
+    const labelLineSmooth = Math.max(0, Math.min(1, this.curveLineSetting || this.labelCurveTensionSetting || 0));
     const labelLineHeight = Math.max(12, 12 + this.labelTextSpacingSetting);
-    const labelSideMargin = Math.max(12, 12 + this.labelTextSpacingSetting);
-    const outerLayoutRadial = Math.max(6, labelLineLength * 0.6);
-    const seriesLayoutRadial = Math.max(6, labelLineLength * 0.5);
-  const outerLayoutHorizontal = Math.max(8, labelLineLength);
-  const seriesLayoutHorizontal = Math.max(10, labelLineLength + 4);
+    const labelSideMargin = Math.max(0, this.labelSidePaddingSetting || 0);
+    const seriesLayoutRadial = labelLineLength;
+    const seriesLayoutHorizontal = Math.max(6, Math.round(seriesLayoutRadial * 1.4));
     const labelLineBaseConfig = {
       show: true,
       length: labelLineLength,
       length2: labelLineLength2,
-      smooth: labelLineSmooth,
+      smooth: labelLineSmooth > 0 ? labelLineSmooth : false,
       lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' }
     };
 
@@ -338,17 +414,58 @@ export class Visual implements powerbi.extensibility.IVisual {
     const dlOpacity: number = Math.max(0, Math.min(1, 1 - dlTransparency / 100));
     const dlShowBlankAs: string = typeof dl["showBlankAs"] === "string" ? dl["showBlankAs"] : "";
     const dlTreatZeroAsBlank: boolean = dl["treatZeroAsBlank"] === true;
+    const dlDisplayUnit: string = dl["displayUnit"] || "auto";
+    const dlValueDecimals: number = typeof dl["valueDecimals"] === "number" ? dl["valueDecimals"] : 2;
+    const dlValueType: string = (dl["valueType"] as string) || "auto";
+
+    const formatNumberWithUnitRestore = (raw: any, unit: string, decimals: number): string => {
+      if (raw === null || raw === undefined || raw === "") return "";
+      const n = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(n)) return String(raw);
+
+      let divisor = 1; let suffix = "";
+      const absn = Math.abs(n);
+      if (unit === "auto") {
+        if (absn >= 1_000_000_000) { divisor = 1_000_000_000; suffix = "B"; }
+        else if (absn >= 1_000_000) { divisor = 1_000_000; suffix = "M"; }
+        else if (absn >= 1_000) { divisor = 1_000; suffix = "K"; }
+      } else if (unit === "thousand") { divisor = 1_000; suffix = "K"; }
+      else if (unit === "million") { divisor = 1_000_000; suffix = "M"; }
+      else if (unit === "billion") { divisor = 1_000_000_000; suffix = "B"; }
+
+      let valueForFormat = n / divisor;
+      const style = dlValueType === "currency" ? "currency" : (dlValueType === "percent" ? "percent" : "decimal");
+      if (style === "percent") {
+        valueForFormat = Math.abs(valueForFormat) <= 1 ? valueForFormat : valueForFormat / 100;
+      }
+      const d = Math.max(0, Math.min(9, Math.floor(decimals)));
+      try {
+        const nf = new Intl.NumberFormat(undefined, {
+          style: style as any,
+          ...(style === "currency" ? { currency: "USD" } : {}),
+          minimumFractionDigits: d,
+          maximumFractionDigits: d
+        });
+        const base = nf.format(valueForFormat);
+        return suffix ? `${base}${suffix}` : base;
+      } catch {
+        const fixed = valueForFormat.toFixed(d);
+        return suffix ? `${fixed}${suffix}` : fixed;
+      }
+    };
 
     const labelFormatterRestore = (p: any) => {
       const v = p?.value;
       if (v === null || v === undefined || v === "") return dlShowBlankAs;
-      if (dlTreatZeroAsBlank) {
-        const numeric = typeof v === "number" ? v : Number(v);
-        if (!Number.isNaN(numeric) && numeric === 0) return dlShowBlankAs ?? "";
+      const numeric = typeof v === "number" ? v : Number(v);
+      if (dlTreatZeroAsBlank && Number.isFinite(numeric) && numeric === 0) {
+        return dlShowBlankAs ?? "";
       }
+
       const name = p?.name ?? "";
-      const pct = p?.percent != null ? `${p.percent}%` : "";
-      return `${name} ${v}\n(${pct})`;
+      const hasNumeric = v !== null && v !== undefined && v !== "" && Number.isFinite(numeric);
+      const valueText = hasNumeric ? formatNumberWithUnitRestore(numeric, dlDisplayUnit, dlValueDecimals) : "";
+      return hasNumeric ? `${name} ${valueText}` : name;
     };
 
   // Restore base donut (pie) view
@@ -407,7 +524,7 @@ export class Visual implements powerbi.extensibility.IVisual {
             universalTransition: { enabled: true },
             avoidLabelOverlap: true,
             minShowLabelAngle: 8,
-            labelLayout: this.makePolarLabelLayout(seriesLayoutRadial, seriesLayoutHorizontal, labelSideMargin + 4),
+            // labelLayout: this.makePolarLabelLayout(seriesLayoutRadial, seriesLayoutHorizontal, labelSideMargin + 4),
             data: (this.basePieData as any).map((d: any) => ({ ...d, itemStyle: { ...(d.itemStyle||{}), borderColor: "#FFFFFF", borderWidth: 2 } })),
             label: {
               show: dlShow,
@@ -424,12 +541,16 @@ export class Visual implements powerbi.extensibility.IVisual {
               width: Math.max(80, Math.floor(w0 * 0.25)) as any
             },
             labelLine: labelLineBaseConfig,
+            // Goal: like ZoomCharts, keep every label at the same radial distance while allowing vertical shifts
+            labelLayout: this.makePolarLabelLayout(seriesLayoutRadial, seriesLayoutHorizontal, labelSideMargin),
             emphasis: { scale: true }
           } as any
         ]
       } as any,
       true
     );
+
+    // Using ECharts native labelLine + labelLayout (no custom drawing needed)
 
     this.isDrilled = false;
     this.drillCategory = null;
@@ -845,7 +966,8 @@ export class Visual implements powerbi.extensibility.IVisual {
       typeof value === "number" && Number.isFinite(value)
         ? Math.max(min, Math.min(max, value))
         : fallback;
-  this.labelLineLengthSetting = clampNumeric(labelTuneObj.lineLength, 20, 4, 160);
+        this.labelLineLengthSetting = clampNumeric(labelTuneObj.lineLength, 20, 4, 160); // Default line length
+  this.curveLineSetting = clampNumeric(labelTuneObj.curveTension, 0, 0, 1);
   this.labelCurveTensionSetting = clampNumeric(labelTuneObj.curveTension, 0.9, 0.1, 2.5);
   this.labelTextSpacingSetting = clampNumeric(labelTuneObj.textSpacing, 4, 0, 20);
   this.labelColumnOffsetSetting = clampNumeric(labelTuneObj.columnOffset, 0, -120, 240);
@@ -897,9 +1019,12 @@ export class Visual implements powerbi.extensibility.IVisual {
     // Data Labels settings
     const dl: any = (dataView.metadata?.objects as any)?.dataLabels || {};
     const dlShow: boolean = dl["show"] !== false;
-  const dlPositionSetting: string = dl["position"] || "auto";
-  const dlShowBlankAs: string = (typeof dl["showBlankAs"] === "string") ? dl["showBlankAs"] : "";
-  const dlTreatZeroAsBlank: boolean = dl["treatZeroAsBlank"] === true;
+    const dlPositionSetting: string = dl["position"] || "auto";
+    const dlShowBlankAs: string = (typeof dl["showBlankAs"] === "string") ? dl["showBlankAs"] : "";
+    const dlTreatZeroAsBlank: boolean = dl["treatZeroAsBlank"] === true;
+    const dlDisplayUnit: string = dl["displayUnit"] || "auto";
+    const dlValueDecimals: number = typeof dl["valueDecimals"] === "number" ? dl["valueDecimals"] : 2;
+    const dlValueType: string = (dl["valueType"] as string) || "auto";
     const dlColor: string = (dl["color"] as any)?.solid?.color || "#444";
     const dlFontFamily: string = (dl["fontFamily"] as string) || "Segoe UI";
     const dlFontSize: number = typeof dl["fontSize"] === "number" ? dl["fontSize"] : 12;
@@ -908,6 +1033,45 @@ export class Visual implements powerbi.extensibility.IVisual {
     const dlFontStyle: any = dlFontStyleSetting === "italic" ? "italic" : "normal";
     const dlTransparency: number = typeof dl["transparency"] === "number" ? dl["transparency"] : 0;
     const dlOpacity: number = Math.max(0, Math.min(1, 1 - (dlTransparency / 100)));
+
+    const formatNumberWithUnit = (raw: any, unit: string, decimals: number): string => {
+      if (raw === null || raw === undefined || raw === "") return "";
+      const n = typeof raw === "number" ? raw : Number(raw);
+      if (!Number.isFinite(n)) return String(raw);
+
+      // Units
+      let divisor = 1; let suffix = "";
+      const absn = Math.abs(n);
+      if (unit === "auto") {
+        if (absn >= 1_000_000_000) { divisor = 1_000_000_000; suffix = "B"; }
+        else if (absn >= 1_000_000) { divisor = 1_000_000; suffix = "M"; }
+        else if (absn >= 1_000) { divisor = 1_000; suffix = "K"; }
+      } else if (unit === "thousand") { divisor = 1_000; suffix = "K"; }
+      else if (unit === "million") { divisor = 1_000_000; suffix = "M"; }
+      else if (unit === "billion") { divisor = 1_000_000_000; suffix = "B"; }
+      // value for formatting
+      let valueForFormat = n / divisor;
+      // Value type handling (decimal/currency/percent)
+      const style = dlValueType === "currency" ? "currency" : (dlValueType === "percent" ? "percent" : "decimal");
+      if (style === "percent") {
+        // If already absolute, convert to fraction; if small, assume fraction
+        valueForFormat = Math.abs(valueForFormat) <= 1 ? valueForFormat : valueForFormat / 100;
+      }
+      const d = Math.max(0, Math.min(9, Math.floor(decimals)));
+      try {
+        const nf = new Intl.NumberFormat(undefined, {
+          style: style as any,
+          ...(style === "currency" ? { currency: "USD" } : {}),
+          minimumFractionDigits: d,
+          maximumFractionDigits: d
+        });
+        const base = nf.format(valueForFormat);
+        return suffix ? `${base}${suffix}` : base;
+      } catch {
+        const fixed = valueForFormat.toFixed(d);
+        return suffix ? `${fixed}${suffix}` : fixed;
+      }
+    };
 
     // Build labelVisibility lookup map: aggregate by category
     const labelVisibilityMap = new Map<any, number>();
@@ -944,6 +1108,18 @@ export class Visual implements powerbi.extensibility.IVisual {
         }
       }
       return v as any;
+    };
+
+    const buildLabelText = (p: any): string => {
+      const base = labelFormatterWithDAX(p);
+      if (base === "") return "";
+
+      const name = p?.name ?? "";
+      const raw = p?.value;
+      const n = typeof raw === "number" ? raw : Number(raw);
+      const hasNumeric = raw !== null && raw !== undefined && raw !== "" && Number.isFinite(n);
+      const valueText = hasNumeric ? formatNumberWithUnit(n, dlDisplayUnit, dlValueDecimals) : "";
+      return hasNumeric ? `${name} ${valueText}` : name;
     };
 
     const mapLabelPosition = (pos: string): any => {
@@ -1122,13 +1298,13 @@ export class Visual implements powerbi.extensibility.IVisual {
   const ringW: number = clampPct(typeof spacingObj.ringWidthPercent === 'number' ? spacingObj.ringWidthPercent : 58, 4, 90);
   const outerR: number = clampPct(innerR + ringW, innerR + 1, 98);
   this.centerYPercentSetting = clampPct(typeof spacingObj.centerYPercent === 'number' ? spacingObj.centerYPercent : 58, 0, 100);
-  const labelLineLengthMain = Math.max(4, this.labelLineLengthSetting);
+  const labelLineLengthMain = Math.max(4, this.labelLineLengthSetting || 18);
   const labelLineLength2Main = Math.max(6, labelLineLengthMain + 6);
-  const labelLineSmoothMain = Math.max(0, Math.min(1, this.labelCurveTensionSetting));
+  const labelLineSmoothMain = Math.max(0, Math.min(1, this.curveLineSetting || this.labelCurveTensionSetting || 0));
   const labelLineHeightMain = Math.max(12, 12 + this.labelTextSpacingSetting);
-  const labelSideMarginMain = Math.max(12, 12 + this.labelTextSpacingSetting);
-  const seriesLayoutRadialMain = Math.max(6, labelLineLengthMain * 0.5);
-  const seriesLayoutHorizontalMain = Math.max(10, labelLineLengthMain + 4);
+  const labelSideMarginMain = Math.max(0, this.labelSidePaddingSetting || 0);
+  const seriesLayoutRadialMain = labelLineLengthMain;
+  const seriesLayoutHorizontalMain = Math.max(6, Math.round(seriesLayoutRadialMain * 1.4));
     const smallMode = w < 260 || h < 220;
     const option: echarts.EChartsCoreOption = {
       tooltip: { trigger: "item", formatter: (p: any) => `${p.name}<br/>${p.value} (${p.percent}%)` },
@@ -1188,24 +1364,27 @@ export class Visual implements powerbi.extensibility.IVisual {
             fontSize: dlFontSize,
             fontStyle: dlFontStyle,
             fontWeight: dlFontWeight,
-            formatter: (p: any) => {
-              const base = labelFormatterWithDAX(p);
-              if (base === "") return "";
-              const name = p.name ?? "";
-              const value = p.value ?? "";
-              const pct = (p.percent != null) ? `${p.percent}%` : "";
-              return `${name} ${value}\n(${pct})`;
-            },
+            formatter: (p: any) => buildLabelText(p),
             opacity: dlOpacity,
             overflow: "break",
             lineHeight: labelLineHeightMain,
             width: Math.max(80, Math.floor(w * 0.25)) as any,
             rich: { }
           },
-          labelLine: { show: true, length: labelLineLengthMain, length2: labelLineLength2Main, smooth: labelLineSmoothMain, lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' } },
+          labelLine: {
+            show: true,
+            length: labelLineLengthMain,
+            length2: labelLineLength2Main,
+            smooth: labelLineSmoothMain > 0 ? labelLineSmoothMain : false,
+            lineStyle: {
+              color: '#BFBFBF',
+              width: 0.8
+            }
+          },
           avoidLabelOverlap: true,
           minShowLabelAngle: 8,
-          labelLayout: this.makePolarLabelLayout(seriesLayoutRadialMain, seriesLayoutHorizontalMain, labelSideMarginMain + 4),
+          // Goal: like ZoomCharts, keep every label at the same radial distance while allowing vertical shifts
+          labelLayout: this.makePolarLabelLayout(seriesLayoutRadialMain, seriesLayoutHorizontalMain, labelSideMarginMain),
           emphasis: { scale: true },
           data: (basePieData as any).map((d: any) => ({ ...d, itemStyle: { ...(d.itemStyle||{}), borderColor: "#FFFFFF", borderWidth: 2 } }))
         } as any
@@ -1225,6 +1404,7 @@ export class Visual implements powerbi.extensibility.IVisual {
     this.chartInstance.clear();
     this.chartInstance.setOption(option, true);
     this.chartInstance.resize();
+    
     this.currentCategories = Array.isArray(categories) ? [...categories] : [];
 
     // Save base state for drill-up if not currently drilled
@@ -1624,7 +1804,9 @@ export class Visual implements powerbi.extensibility.IVisual {
           color: { solid: { color: dl?.color?.solid?.color || "#444444" } },
           transparency: dl?.transparency || 0,
           showBlankAs: typeof dl?.showBlankAs === "string" ? dl.showBlankAs : "",
-          treatZeroAsBlank: dl?.treatZeroAsBlank === true
+          treatZeroAsBlank: dl?.treatZeroAsBlank === true,
+          displayUnit: dl?.displayUnit || "auto",
+          valueDecimals: typeof dl?.valueDecimals === "number" ? dl.valueDecimals : 2
         },
         selector: undefined as any
       });

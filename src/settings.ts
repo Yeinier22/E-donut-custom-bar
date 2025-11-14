@@ -42,6 +42,37 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
         value: 11
     });
 
+    displayUnit = new formattingSettings.ItemDropdown({
+        name: "displayUnit",
+        displayName: "Display units",
+        items: [
+            { displayName: "Auto", value: "auto" },
+            { displayName: "None", value: "none" },
+            { displayName: "Thousands", value: "thousand" },
+            { displayName: "Millions", value: "million" },
+            { displayName: "Billions", value: "billion" }
+        ],
+        value: { displayName: "Auto", value: "auto" }
+    });
+
+    valueDecimals = new formattingSettings.NumUpDown({
+        name: "valueDecimals",
+        displayName: "Value decimal places",
+        value: 2
+    });
+
+    valueType = new formattingSettings.ItemDropdown({
+        name: "valueType",
+        displayName: "Value type",
+        items: [
+            { displayName: "Auto", value: "auto" },
+            { displayName: "Number", value: "number" },
+            { displayName: "Currency", value: "currency" },
+            { displayName: "Percent", value: "percent" }
+        ],
+        value: { displayName: "Auto", value: "auto" }
+    });
+
     color = new formattingSettings.ColorPicker({
         name: "color",
         displayName: "Color",
@@ -50,7 +81,16 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
 
     name: string = "dataLabels";
     displayName: string = "Data Labels";
-    slices: Array<FormattingSettingsSlice> = [this.show, this.position, this.fontFamily, this.fontSize, this.color];
+    slices: Array<FormattingSettingsSlice> = [
+        this.show,
+        this.position,
+        this.fontFamily,
+        this.fontSize,
+        this.color,
+        this.displayUnit,
+        this.valueDecimals,
+        this.valueType
+    ];
 }
 
 /**
