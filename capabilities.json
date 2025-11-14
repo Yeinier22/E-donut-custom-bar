@@ -187,6 +187,38 @@
         }
       }
     },
+    "dataLabelsDrill": {
+      "displayName": "Data Labels (Drill)",
+      "properties": {
+        "displayUnit": {
+          "displayName": "Display units",
+          "type": {
+            "enumeration": [
+              { "displayName": "Auto", "value": "auto" },
+              { "displayName": "None", "value": "none" },
+              { "displayName": "Thousands", "value": "thousand" },
+              { "displayName": "Millions", "value": "million" },
+              { "displayName": "Billions", "value": "billion" }
+            ]
+          }
+        },
+        "valueDecimals": {
+          "displayName": "Value decimal places",
+          "type": { "numeric": true }
+        },
+        "valueType": {
+          "displayName": "Value type",
+          "type": {
+            "enumeration": [
+              { "displayName": "Auto", "value": "auto" },
+              { "displayName": "Number", "value": "number" },
+              { "displayName": "Currency", "value": "currency" },
+              { "displayName": "Percent", "value": "percent" }
+            ]
+          }
+        }
+      }
+    },
       "drillHeader": {
         "displayName": "Drill header",
         "properties": {
