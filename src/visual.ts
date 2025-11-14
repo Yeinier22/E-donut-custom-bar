@@ -123,6 +123,12 @@ export class Visual implements powerbi.extensibility.IVisual {
   private labelColumnOffsetSetting: number = 0;
   private labelSidePaddingSetting: number = 0;
   private centerYPercentSetting: number = 58;
+  // Drill-specific overrides from formatting card (no capabilities touch)
+  private drillLabelLineLengthSetting?: number;
+  private drillLabelCurveTensionSetting?: number;
+  private drillLabelTextSpacingSetting?: number;
+  private drillLabelColumnOffsetSetting?: number;
+  private drillLabelSidePaddingSetting?: number;
 
   // Using ECharts native labelLine + labelLayout instead of custom drawing
 
@@ -307,6 +313,143 @@ export class Visual implements powerbi.extensibility.IVisual {
       } catch {
         return {};
       }
+    };
+  }
+
+  // Variant that uses explicit override values instead of instance fields.
+  private makePolarLabelLayoutWithOptions(
+    radialLen: number,
+    horizLen: number,
+    sideMargin: number,
+    opts: { curveTension: number; columnOffset: number; sidePadding: number; lineLength: number }
+  ) {
+    const { curveTension, columnOffset, sidePadding, lineLength } = opts;
+    return (params: any) => {
+      try {
+        const w = this.chartInstance.getWidth?.() ?? this.chartContainer.clientWidth ?? 0;
+        const h = this.chartInstance.getHeight?.() ?? this.chartContainer.clientHeight ?? 0;
+
+        const data = params?.seriesModel?.getData?.();
+        const layout = data?.getItemLayout?.(params?.dataIndex);
+        if (!layout) return {};
+
+        const cx: number = layout.cx ?? w * 0.5;
+        const cyPct = Math.max(0, Math.min(100, this.centerYPercentSetting || 58)) / 100;
+        const cy: number = layout.cy ?? h * cyPct;
+        const rOuter: number = layout.r ?? Math.min(w, h) * 0.35;
+        const rInner: number = layout.r0 ?? 0;
+        const a0: number = layout.startAngle ?? 0;
+        const a1: number = layout.endAngle ?? 0;
+
+        const theta = (a0 + a1) / 2;
+        const cosT = Math.cos(theta);
+        const sinT = Math.sin(theta);
+
+        const sliceAngleDeg = Math.abs((a1 - a0) * (180 / Math.PI));
+        const isSmallSlice = sliceAngleDeg < 15;
+
+        const scaleFactor = 1;
+        const adaptiveRadialLen = Math.max(8, radialLen * scaleFactor);
+        const adaptiveHorizLen = Math.max(10, horizLen * scaleFactor);
+        const adaptiveMargin = Math.max(10, sideMargin * scaleFactor);
+
+        const isRightSide = cosT >= 0;
+        const lineStartRadius = rOuter;
+        const arcPoint: [number, number] = [cx + lineStartRadius * cosT, cy + lineStartRadius * sinT];
+
+        const ct = Math.max(0.1, Math.min(2, curveTension || 0.9));
+
+        const labelW = params?.labelRect?.width || 0;
+        const labelH = params?.labelRect?.height || 0;
+
+        let baseControlRadius = rOuter + adaptiveRadialLen * ct;
+        let outerPoint: [number, number] = [cx + baseControlRadius * cosT, cy + baseControlRadius * sinT];
+
+        const outerPointDist = Math.sqrt(
+          Math.pow(outerPoint[0] - cx, 2) + Math.pow(outerPoint[1] - cy, 2)
+        );
+        const safeInnerBoundary = rInner * 1.2;
+        let needsAdjustment = false;
+        if (outerPointDist < safeInnerBoundary || isSmallSlice) {
+          const targetDistance = Math.max(safeInnerBoundary, rOuter + adaptiveRadialLen);
+          baseControlRadius = targetDistance + labelH * 0.3;
+          outerPoint = [cx + baseControlRadius * cosT, cy + baseControlRadius * sinT];
+          needsAdjustment = true;
+        }
+
+        const paddingX = Math.max(0, sidePadding || 0);
+        const safeMinX = adaptiveMargin + paddingX;
+        const safeMaxX = w - (adaptiveMargin + paddingX);
+        const safeMinCenterY = adaptiveMargin + labelH / 2;
+        const safeMaxCenterY = Math.max(safeMinCenterY, h - adaptiveMargin - labelH / 2);
+
+        let labelCenterY = outerPoint[1];
+        if (needsAdjustment) {
+          const isUpperHalf = sinT < 0;
+          const verticalShift = labelH * 1.0;
+          labelCenterY = isUpperHalf ? labelCenterY - verticalShift : labelCenterY + verticalShift;
+        }
+        labelCenterY = Math.max(safeMinCenterY, Math.min(labelCenterY, safeMaxCenterY));
+        const labelTop = labelCenterY - labelH / 2;
+
+        const lineLen = Math.max(6, (Number.isFinite(lineLength) ? lineLength : adaptiveHorizLen));
+        const extraPush = rInner > 0 ? Math.max(0, rInner * 0.3) : 0;
+        const desiredOffset = rOuter + adaptiveRadialLen + lineLen + (columnOffset || 0) + extraPush;
+        let labelLeft: number;
+        if (isRightSide) {
+          const desiredLeft = cx + desiredOffset;
+          const maxLeft = Math.min(safeMaxX - labelW, w - adaptiveMargin - labelW);
+          labelLeft = Math.min(Math.max(desiredLeft, arcPoint[0] + 6), maxLeft);
+        } else {
+          const desiredRight = cx - desiredOffset;
+          const minRight = Math.max(safeMinX + labelW, adaptiveMargin + labelW);
+          let anchorRight = Math.max(Math.min(desiredRight, arcPoint[0] - 6), minRight);
+          labelLeft = anchorRight - labelW;
+          if (labelLeft < safeMinX) {
+            labelLeft = safeMinX;
+            anchorRight = labelLeft + labelW;
+          }
+        }
+        labelLeft = Math.max(safeMinX, Math.min(labelLeft, safeMaxX - labelW));
+
+        const lineEndX = isRightSide ? labelLeft : labelLeft + labelW;
+        const lineEndY = labelCenterY;
+
+        const targetAngle = Math.atan2(lineEndY - cy, lineEndX - cx);
+        let optimalAngle = targetAngle;
+        if (a0 < a1) optimalAngle = Math.max(a0, Math.min(targetAngle, a1));
+        else {
+          if (targetAngle >= a0 || targetAngle <= a1) optimalAngle = targetAngle;
+          else optimalAngle = Math.abs(targetAngle - a0) < Math.abs(targetAngle - a1) ? a0 : a1;
+        }
+        const optimalCos = Math.cos(optimalAngle);
+        const optimalSin = Math.sin(optimalAngle);
+        const dynamicArcPoint: [number, number] = [
+          cx + lineStartRadius * optimalCos,
+          cy + lineStartRadius * optimalSin,
+        ];
+        const controlPoint: [number, number] = [
+          cx + (rOuter + adaptiveRadialLen * Math.max(0.2, Math.min(1.5, ct * 0.9))) * optimalCos,
+          cy + (rOuter + adaptiveRadialLen * Math.max(0.2, Math.min(1.5, ct * 0.9))) * optimalSin,
+        ];
+
+        const linePoints: Array<[number, number]> = [
+          dynamicArcPoint,
+          controlPoint,
+          [lineEndX, lineEndY],
+        ];
+        const textX = isRightSide ? labelLeft : labelLeft + labelW;
+        return {
+          x: textX,
+          y: labelCenterY,
+          align: isRightSide ? "left" : "right",
+          verticalAlign: "middle",
+          labelLinePoints: linePoints,
+          moveOverlap: "shiftY",
+          hideOverlap: true,
+          labelRect: { x: labelLeft, y: labelTop, width: labelW, height: labelH },
+        } as any;
+      } catch { return {}; }
     };
   }
 
@@ -981,6 +1124,18 @@ export class Visual implements powerbi.extensibility.IVisual {
   this.labelColumnOffsetSetting = clampNumeric(labelTuneObj.columnOffset, 0, -120, 240);
   this.labelSidePaddingSetting = clampNumeric(labelTuneObj.sidePadding, 0, 0, 120);
 
+    // Read drill tuning; prefer metadata objects when present (requires capabilities),
+    // otherwise fall back to formatting model values (may remain defaults if not persisted).
+    const fsAny: any = this.formattingSettings as any;
+    const ltDrill = fsAny?.labelTuningDrillCard;
+    const objLtDrill: any = (dataView.metadata?.objects as any)?.labelTuningDrill || {};
+    const numVal = (x: any) => (typeof x === "number" && Number.isFinite(x) ? x : undefined);
+    this.drillLabelLineLengthSetting = numVal(objLtDrill.lineLength) ?? numVal(ltDrill?.lineLength?.value);
+    this.drillLabelCurveTensionSetting = numVal(objLtDrill.curveTension) ?? numVal(ltDrill?.curveTension?.value);
+    this.drillLabelTextSpacingSetting = numVal(objLtDrill.textSpacing) ?? numVal(ltDrill?.textSpacing?.value);
+    this.drillLabelColumnOffsetSetting = numVal(objLtDrill.columnOffset) ?? numVal(ltDrill?.columnOffset?.value);
+    this.drillLabelSidePaddingSetting = numVal(objLtDrill.sidePadding) ?? numVal(ltDrill?.sidePadding?.value);
+
     const categorical = dataView.categorical;
     const categoryCols = categorical.categories || [];
     const cat1All = categoryCols[0]?.values || [];
@@ -1419,7 +1574,7 @@ export class Visual implements powerbi.extensibility.IVisual {
     this.hoverGraphic = [];
     this.selectionGraphic = [];
 
-    const renderDrillView = (categoryLabel: string, resetSelection: boolean, categoryKey?: any): boolean => {
+    const renderDrillView = (categoryLabel: string, resetSelection: boolean, categoryKey?: any, isFormatUpdate?: boolean): boolean => {
       const pieData = this.buildDrillPieData(categoryLabel, categoryKey);
       if (!pieData || pieData.length === 0) {
         return false;
@@ -1464,13 +1619,22 @@ export class Visual implements powerbi.extensibility.IVisual {
       }
   const drillLegendNames = (pieData || []).map((d: any) => d.name);
 
-  const labelLineLengthLocal = Math.max(4, this.labelLineLengthSetting);
-  const labelLineLength2Local = Math.max(6, labelLineLengthLocal + 6);
-  const labelLineSmoothLocal = Math.max(0, Math.min(1, this.labelCurveTensionSetting));
-  const labelLineHeightLocal = Math.max(12, 12 + this.labelTextSpacingSetting);
-  const labelSideMarginLocal = Math.max(12, 12 + this.labelTextSpacingSetting);
-  const seriesLayoutRadialLocal = Math.max(6, labelLineLengthLocal * 0.5);
-  const seriesLayoutHorizontalLocal = Math.max(10, labelLineLengthLocal + 4);
+  const effLineLength = Math.max(4, (this.drillLabelLineLengthSetting ?? this.labelLineLengthSetting));
+  const effCurveTension = (this.drillLabelCurveTensionSetting ?? this.labelCurveTensionSetting);
+  // For drill, if an explicit drill curveTension exists, use it for smoothing; else fall back.
+  const effSmooth = Math.max(0, Math.min(1,
+    (this.drillLabelCurveTensionSetting !== undefined ? this.drillLabelCurveTensionSetting : (this.curveLineSetting ?? this.labelCurveTensionSetting ?? 0))
+  ));
+  const effTextSpacing = (this.drillLabelTextSpacingSetting ?? this.labelTextSpacingSetting);
+  const effSidePadding = Math.max(0, (this.drillLabelSidePaddingSetting ?? this.labelSidePaddingSetting));
+  const effColumnOffset = (this.drillLabelColumnOffsetSetting ?? this.labelColumnOffsetSetting);
+  const labelLineLengthLocal = effLineLength;
+  const labelLineLength2Local = Math.max(6, effLineLength + 6);
+  const labelLineSmoothLocal = effSmooth;
+  const labelLineHeightLocal = Math.max(12, 12 + effTextSpacing);
+  const labelSideMarginLocal = effSidePadding;
+  const seriesLayoutRadialLocal = Math.max(6, effLineLength * 0.5);
+  const seriesLayoutHorizontalLocal = Math.max(10, effLineLength + 4);
 
       // Build label visibility map for drill (aggregate labelVisibility over selected cat1 and each cat2)
       const labelVisibilityMapDrill = new Map<any, number>();
@@ -1558,8 +1722,8 @@ export class Visual implements powerbi.extensibility.IVisual {
               center: ["50%", `${this.centerYPercentSetting}%`],
               selectedMode: "single",
               selectedOffset: this.sliceSelectedOffset,
-              // circular motion: spin the start angle +360 each drill
-              startAngle: (this.spinAngle = (this.spinAngle + 360)) % 360,
+              // circular motion: spin only when drilling by click, not on format updates
+              startAngle: (this.spinAngle = isFormatUpdate ? (this.spinAngle % 360) : ((this.spinAngle + 360) % 360)),
               universalTransition: { enabled: true, divideShape: "clone" },
               label: {
                 show: dlShow,
@@ -1589,10 +1753,15 @@ export class Visual implements powerbi.extensibility.IVisual {
                 lineHeight: labelLineHeightLocal,
                 ...(dlPlacementMode === "wrap" ? { width: Math.max(80, Math.floor(w * 0.25)) as any } : {})
               },
-              labelLine: { show: isOutside, length: labelLineLengthLocal, length2: labelLineLength2Local, smooth: labelLineSmoothLocal, lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' } },
+              labelLine: { show: isOutside && labelLineLengthLocal > 0, length: Math.max(0, labelLineLengthLocal), length2: Math.max(0, labelLineLength2Local), smooth: labelLineSmoothLocal, lineStyle: { width: 0.8, color: '#BFBFBF', type: 'solid' } },
               avoidLabelOverlap: true,
               minShowLabelAngle: 8,
-              labelLayout: isOutside ? this.makePolarLabelLayout(seriesLayoutRadialLocal, seriesLayoutHorizontalLocal, labelSideMarginLocal + 4) : undefined,
+              labelLayout: isOutside ? this.makePolarLabelLayoutWithOptions(
+                seriesLayoutRadialLocal,
+                seriesLayoutHorizontalLocal,
+                labelSideMarginLocal,
+                { curveTension: effCurveTension, columnOffset: effColumnOffset, sidePadding: effSidePadding, lineLength: effLineLength }
+              ) : undefined,
               emphasis: { scale: true },
               data: (pieData as any).map((d: any) => ({
                 ...d,
@@ -1638,7 +1807,7 @@ export class Visual implements powerbi.extensibility.IVisual {
           clickedIndex >= 0 && baseCats && clickedIndex < baseCats.length
             ? baseCats[clickedIndex]
             : clickedCategoryLabel;
-        renderDrillView(clickedCategoryLabel, true, clickedKey);
+        renderDrillView(clickedCategoryLabel, true, clickedKey, false);
         return;
       } else if (this.isDrilled && params && params.componentType === "series") {
         // In drill level, toggle ECharts 'selected' state for the clicked slice (visual feedback only)
@@ -1653,7 +1822,7 @@ export class Visual implements powerbi.extensibility.IVisual {
     });
 
     if (this.isDrilled && this.drillCategory) {
-      if (!renderDrillView(this.drillCategory, false, this.drillCategoryKey)) {
+      if (!renderDrillView(this.drillCategory, false, this.drillCategoryKey, true)) {
         // If no drill data is available anymore, restore base view
         this.restoreBaseView();
       }

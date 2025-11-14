@@ -260,6 +260,47 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
 }
 
 /**
+ * Label Tuning (Drill) Formatting Card
+ * Nota: Solo UI. No modifica capabilities.
+ */
+class LabelTuningDrillCardSettings extends FormattingSettingsCard {
+    lineLength = new formattingSettings.NumUpDown({
+        name: "lineLength",
+        displayName: "Line Length",
+        value: 20
+    });
+
+    curveTension = new formattingSettings.NumUpDown({
+        name: "curveTension",
+        displayName: "Curve Tension",
+        value: 0.9
+    });
+
+    textSpacing = new formattingSettings.NumUpDown({
+        name: "textSpacing",
+        displayName: "Text Line Spacing",
+        value: 4
+    });
+
+    columnOffset = new formattingSettings.NumUpDown({
+        name: "columnOffset",
+        displayName: "Label Column Offset (px)",
+        value: 0
+    });
+
+    sidePadding = new formattingSettings.NumUpDown({
+        name: "sidePadding",
+        displayName: "Side Padding (px)",
+        value: 0
+    });
+
+    // Importante: El nombre de objeto difiere del global para que pueda persistir aparte si el capabilities lo soporta
+    name: string = "labelTuningDrill";
+    displayName: string = "Label & Line Tuning (Drill)";
+    slices: Array<FormattingSettingsSlice> = [this.lineLength, this.curveTension, this.textSpacing, this.columnOffset, this.sidePadding];
+}
+
+/**
  * Visual settings model class
  */
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
@@ -269,6 +310,15 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     spacingCard = new SpacingCardSettings();
     legendCard = new LegendCardSettings();
     labelTuningCard = new LabelTuningCardSettings();
+    labelTuningDrillCard = new LabelTuningDrillCardSettings();
 
-    cards = [this.dataLabelsCard, this.dataLabelsDrillCard, this.dataPointCard, this.spacingCard, this.legendCard, this.labelTuningCard];
+    cards = [
+        this.dataLabelsCard,
+        this.dataLabelsDrillCard,
+        this.dataPointCard,
+        this.spacingCard,
+        this.legendCard,
+        this.labelTuningCard,
+        this.labelTuningDrillCard
+    ];
 }

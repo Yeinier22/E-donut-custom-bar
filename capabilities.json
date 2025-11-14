@@ -440,6 +440,15 @@
           "type": { "numeric": true }
         }
       }
+    },
+    "labelTuningDrill": {
+      "properties": {
+        "lineLength": { "type": { "numeric": true } },
+        "curveTension": { "type": { "numeric": true } },
+        "textSpacing": { "type": { "numeric": true } },
+        "columnOffset": { "type": { "numeric": true } },
+        "sidePadding": { "type": { "numeric": true } }
+      }
     }
   },
   "privileges": []
