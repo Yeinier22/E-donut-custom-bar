@@ -175,6 +175,21 @@ class DataPointCardSettings extends FormattingSettingsCard {
 }
 
 /**
+ * Drill Header Formatting Card
+ */
+class DrillHeaderCardSettings extends FormattingSettingsCard {
+  show = new formattingSettings.ToggleSwitch({
+    name: "show",
+    displayName: "Show title",
+    value: true,
+  });
+
+  name: string = "drillHeader";
+  displayName: string = "Drill header";
+  slices: Array<FormattingSettingsSlice> = [this.show];
+}
+
+/**
  * Spacing Formatting Card
  */
 class SpacingCardSettings extends FormattingSettingsCard {
@@ -671,6 +686,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   dataLabelsCard = new DataLabelsCardSettings();
   dataLabelsDrillCard = new DataLabelsDrillCardSettings();
   dataPointCard = new DataPointCardSettings();
+  drillHeaderCard = new DrillHeaderCardSettings();
   spacingCard = new SpacingCardSettings();
   legendCard = new LegendCardSettings();
   labelTuningCard = new LabelTuningCardSettings();
@@ -680,6 +696,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.dataLabelsCard,
     this.dataLabelsDrillCard,
     this.dataPointCard,
+    this.drillHeaderCard,
     this.spacingCard,
     this.legendCard,
     this.labelTuningCard,

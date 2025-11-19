@@ -97,14 +97,14 @@ class DonutRenderer {
     this.svg = svg;
   }
 
-  public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string): void {
+  public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean): void {
     const { radius, lineLengthConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
     
-    // Render navigation buttons if in drill mode
-    if (isDrilled) {
+    // Render navigation buttons if in drill mode and header is enabled
+    if (isDrilled && showDrillHeader) {
       this.renderNavigationButtons(width, height, onBackClick, drillCategory);
     }
     
@@ -1037,8 +1037,11 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       this.update(options); // Re-render with main data
     } : undefined;
 
+    // Get drill header configuration
+    const showDrillHeader = this.formattingSettings.drillHeaderCard.show.value;
+    
     // Renderizar
-    this.renderer.render(viewModel, config, onSliceClick, onBackClick, this.isDrilled, this.drillCategory);
+    this.renderer.render(viewModel, config, onSliceClick, onBackClick, this.isDrilled, this.drillCategory, showDrillHeader);
   }
 
   private createViewModel(dataView: powerbi.DataView): DonutDataPoint[] {
