@@ -72,11 +72,16 @@ class DonutRenderer {
     this.svg = svg;
   }
 
-  public render(viewModel: DonutDataPoint[], config: RenderConfig): void {
+  public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string): void {
     const { radius, lineLengthConfig, width, height, wrap, spacing } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
+    
+    // Render navigation buttons if in drill mode
+    if (isDrilled) {
+      this.renderNavigationButtons(width, height, onBackClick, drillCategory);
+    }
     
     // Calcular posición Y usando centerYPercent
     const centerY = (height * spacing.centerYPercent) / 100;
@@ -96,9 +101,38 @@ class DonutRenderer {
     const color = d3.scaleOrdinal(d3.schemeSet2);
 
     // Renderizar componentes
-    this.renderDonut(g, viewModel, pie, arc, color);
+    this.renderDonut(g, viewModel, pie, arc, color, onSliceClick);
     this.renderLines(g, viewModel, pie, outerRadius, lineLengthConfig);
     this.renderLabels(g, viewModel, pie, outerRadius, lineLengthConfig, wrap);
+  }
+
+  private renderNavigationButtons(width: number, height: number, onBackClick?: () => void, drillCategory?: string): void {
+    // Back button
+    const backButton = this.svg.append("g")
+      .attr("class", "nav-button")
+      .attr("transform", "translate(20, 20)")
+      .style("cursor", "pointer")
+      .on("click", onBackClick);
+    
+    backButton.append("text")
+      .text("↩ Back")
+      .style("font-family", "Segoe UI")
+      .style("font-size", "14px")
+      .style("font-weight", "bold")
+      .style("fill", "#555");
+    
+    // Title showing drill category
+    if (drillCategory) {
+      this.svg.append("text")
+        .text(`Details for ${drillCategory}`)
+        .attr("x", width / 2)
+        .attr("y", 30)
+        .style("text-anchor", "middle")
+        .style("font-family", "Segoe UI")
+        .style("font-size", "16px")
+        .style("font-weight", "bold")
+        .style("fill", "#333");
+    }
   }
 
   public renderNoData(width: number, height: number): void {
@@ -165,7 +199,8 @@ class DonutRenderer {
                      viewModel: DonutDataPoint[], 
                      pie: d3.Pie<any, DonutDataPoint>, 
                      arc: d3.Arc<any, d3.PieArcDatum<DonutDataPoint>>,
-                     color: d3.ScaleOrdinal<string, string, never>): void {
+                     color: d3.ScaleOrdinal<string, string, never>,
+                     onSliceClick?: (category: string) => void): void {
     g.selectAll("path")
       .data(pie(viewModel))
       .enter()
@@ -173,7 +208,12 @@ class DonutRenderer {
       .attr("d", arc)
       .attr("fill", (d: any) => color(d.data.category))
       .style("stroke", "#fff")
-      .style("stroke-width", "2px");
+      .style("stroke-width", "2px")
+      .style("cursor", onSliceClick ? "pointer" : "default")
+      .on("click", onSliceClick ? function(d: any) {
+        // En D3 v5, 'd' es el primer parámetro
+        onSliceClick(d.data.category);
+      } : null);
   }
 
   private renderLines(g: d3.Selection<SVGGElement, unknown, null, undefined>, 
@@ -242,6 +282,14 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   private renderer: DonutRenderer;
   private formattingSettings: VisualFormattingSettingsModel;
   private formattingSettingsService: FormattingSettingsService;
+  
+  // Drill down state (identical to ECharts version)
+  private isDrilled: boolean = false;
+  private drillCategory: string | null = null;
+  private drillCategoryKey: any = null;
+  private dataView: powerbi.DataView | null = null;
+  private baseCategories: any[] = [];
+  private currentCategories: any[] = [];
 
   constructor(options: powerbi.extensibility.visual.VisualConstructorOptions) {
     this.host = options.host;
@@ -260,6 +308,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
 
   public update(options: powerbi.extensibility.visual.VisualUpdateOptions): void {
     const dataView = options.dataViews && options.dataViews[0];
+    this.dataView = dataView;
     
     if (!dataView || !dataView.categorical) {
       this.renderer.renderNoData(options.viewport.width, options.viewport.height);
@@ -295,8 +344,49 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       spacing: spacingConfig
     };
 
+    // Save base state if not drilled (like ECharts version)
+    if (!this.isDrilled) {
+      const categories = dataView.categorical.categories[0].values;
+      this.baseCategories = [];
+      const seen = new Set();
+      for (const cat of categories) {
+        if (!seen.has(cat)) {
+          seen.add(cat);
+          this.baseCategories.push(cat);
+        }
+      }
+      this.currentCategories = [...this.baseCategories];
+    }
+    
+    // Always enable click when not drilled (like ECharts version)
+    const onSliceClick = !this.isDrilled ? (category: string) => {
+      // Find the category key (exact match logic from ECharts)
+      const clickedIndex = this.currentCategories.indexOf(category);
+      const clickedKey = clickedIndex >= 0 && this.baseCategories && clickedIndex < this.baseCategories.length
+        ? this.baseCategories[clickedIndex]
+        : category;
+      
+      // Execute drill down (identical to renderDrillView logic)
+      const drillData = this.buildDrillData(dataView, category);
+      if (drillData && drillData.length > 0) {
+        this.isDrilled = true;
+        this.drillCategory = category;
+        this.drillCategoryKey = clickedKey;
+        this.currentCategories = drillData.map(d => d.category);
+        this.update(options); // Re-render with drill data
+      }
+    } : undefined;
+    
+    const onBackClick = this.isDrilled ? () => {
+      this.isDrilled = false;
+      this.drillCategory = null;
+      this.drillCategoryKey = null;
+      this.currentCategories = [...this.baseCategories];
+      this.update(options); // Re-render with main data
+    } : undefined;
+
     // Renderizar
-    this.renderer.render(viewModel, config);
+    this.renderer.render(viewModel, config, onSliceClick, onBackClick, this.isDrilled, this.drillCategory);
   }
 
   private createViewModel(dataView: powerbi.DataView): DonutDataPoint[] {
@@ -305,35 +395,149 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       return [];
     }
 
-    const categories = categorical.categories[0].values;
-    const values = categorical.values[0].values;
+    // Check if we have two category levels for drill down
+    const hasSecondCategory = categorical.categories && categorical.categories.length > 1;
     
-    const dataPoints: DonutDataPoint[] = [];
-    
-    // Calcular total de manera segura
-    let total = 0;
-    for (let i = 0; i < values.length; i++) {
-      const rawValue = values[i];
-      const num = typeof rawValue === "number" ? rawValue : Number(rawValue);
-      if (!isNaN(num) && isFinite(num)) {
-        total += num;
-      }
+    if (this.isDrilled && hasSecondCategory && this.drillCategory) {
+      // Build drill down data (second level)
+      return this.buildDrillData(dataView, this.drillCategory);
+    } else {
+      // Build main level data (first category)
+      return this.buildMainData(dataView);
     }
+  }
 
-    for (let i = 0; i < categories.length; i++) {
-      const category = categories[i] == null ? "(Blank)" : String(categories[i]);
-      const rawValue = values[i];
+  private buildMainData(dataView: powerbi.DataView): DonutDataPoint[] {
+    const categorical = dataView.categorical;
+    const cat1Values = categorical.categories[0].values;
+    const allValues = categorical.values[0].values;
+    
+    // Aggregate by first category (same logic as ECharts version)
+    const categoryTotals = new Map<any, number>();
+    
+    for (let i = 0; i < cat1Values.length; i++) {
+      const category = cat1Values[i];
+      const rawValue = allValues[i];
       const value = typeof rawValue === "number" ? rawValue : Number(rawValue);
       
       if (!isNaN(value) && isFinite(value)) {
+        categoryTotals.set(category, (categoryTotals.get(category) || 0) + value);
+      }
+    }
+    
+    // Get unique categories in order of appearance
+    const uniqueCategories: any[] = [];
+    const seen = new Set();
+    for (const cat of cat1Values) {
+      if (!seen.has(cat)) {
+        seen.add(cat);
+        uniqueCategories.push(cat);
+      }
+    }
+    
+    // Calculate total for percentages
+    let total = 0;
+    categoryTotals.forEach(value => total += value);
+    
+    // Build data points
+    const dataPoints: DonutDataPoint[] = [];
+    for (const category of uniqueCategories) {
+      const categoryName = category == null ? "(Blank)" : String(category);
+      const value = categoryTotals.get(category) || 0;
+      
+      if (value > 0) {
         dataPoints.push({
-          category,
+          category: categoryName,
           value,
           percentage: total > 0 ? (value / total) * 100 : 0
         });
       }
     }
 
+    return dataPoints;
+  }
+
+  private buildDrillData(dataView: powerbi.DataView, drillCategory: string): DonutDataPoint[] {
+    // Replicate exact logic from buildDrillPieData in ECharts version
+    const categorical = dataView.categorical;
+    const cat1 = categorical.categories[0].values;
+    
+    // Check if second category exists
+    if (!categorical.categories || categorical.categories.length < 2) {
+      return [];
+    }
+    
+    const cat2 = categorical.categories[1].values;
+    const valuesCols = categorical.values || [];
+    const rowCount = (cat1 as any[]).length;
+
+    // Exact match logic from ECharts version
+    const matchesCategory = (value: any) => {
+      if (this.drillCategoryKey !== undefined && this.drillCategoryKey !== null) {
+        const valuePrimitive = (value !== null && value !== undefined && typeof value.valueOf === "function")
+          ? value.valueOf() : value;
+        const keyPrimitive = (this.drillCategoryKey !== null && this.drillCategoryKey !== undefined && typeof this.drillCategoryKey.valueOf === "function")
+          ? this.drillCategoryKey.valueOf() : this.drillCategoryKey;
+        if (valuePrimitive === keyPrimitive || String(valuePrimitive) === String(keyPrimitive)) return true;
+      }
+      if (value === drillCategory) return true;
+      if (value !== null && value !== undefined && drillCategory !== null && drillCategory !== undefined) {
+        return String(value) === String(drillCategory);
+      }
+      return false;
+    };
+
+    const idxs: number[] = [];
+    for (let i = 0; i < rowCount; i++) {
+      if (matchesCategory((cat1 as any[])[i])) idxs.push(i);
+    }
+    
+    const cat2Order: any[] = [];
+    const seen = new Set<any>();
+    for (const i of idxs) {
+      const v = (cat2 as any[])[i];
+      if (!seen.has(v)) { seen.add(v); cat2Order.push(v); }
+    }
+
+    const toNumber = (x: any) => (x === null || x === undefined || x === "") ? 0 : (typeof x === "number" ? x : Number(x));
+    const totals = new Map<any, number>();
+
+    // Helper to add from a column source (exact ECharts logic)
+    const addFromSource = (src: any[]) => {
+      for (const c2 of cat2Order) {
+        let s = 0;
+        for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
+        totals.set(c2, (totals.get(c2) || 0) + s);
+      }
+    };
+
+    const groups = (valuesCols as any)?.grouped?.() as any[] | undefined;
+    if (Array.isArray(groups) && groups.length > 0) {
+      const measureCount = groups[0]?.values?.length || 0;
+      for (const g of groups) {
+        if (measureCount <= 1) addFromSource(g?.values?.[0]?.values || []);
+        else for (const mv of g.values || []) addFromSource(mv?.values || []);
+      }
+    } else {
+      for (const mv of (valuesCols as any[]) || []) addFromSource(mv?.values || []);
+    }
+
+    // Convert to DonutDataPoint format
+    const dataPoints: DonutDataPoint[] = [];
+    let total = 0;
+    totals.forEach(value => total += value);
+    
+    cat2Order.forEach((name) => {
+      const value = totals.get(name) || 0;
+      if (value > 0) {
+        dataPoints.push({
+          category: String(name),
+          value,
+          percentage: total > 0 ? (value / total) * 100 : 0
+        });
+      }
+    });
+    
     return dataPoints;
   }
 

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo D3 Donut Chart - Drill Down Debug</title>
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; }
+    .container { height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 8px 12px; background: #f3f3f3; border-bottom: 1px solid #ddd; }
+    .content { flex: 1; display: flex; }
+    #chart { flex: 1; min-height: 400px; }
+    .sidebar { width: 300px; padding: 12px; background: #fafafa; border-left: 1px solid #ddd; overflow-y: auto; }
+    .logs { background: #fff; border: 1px solid #ddd; padding: 8px; margin-top: 12px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    button { margin: 4px; padding: 6px 12px; }
+    .data-selector { margin-bottom: 12px; }
+    select { padding: 4px; }
+  </style>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <strong>Demo D3 Donut Chart</strong> · Debug del drill down functionality
+    </header>
+    <div class="content">
+      <div id="chart"></div>
+      <div class="sidebar">
+        <div class="data-selector">
+          <label>Datos de prueba:</label><br>
+          <select id="data-select">
+            <option value="single">Una categoría</option>
+            <option value="double" selected>Dos categorías (drill)</option>
+          </select>
+          <button onclick="updateData()">Cargar</button>
+        </div>
+        
+        <div>
+          <strong>Estado Actual:</strong><br>
+          <div id="status">Cargando...</div>
+        </div>
+        
+        <div>
+          <strong>Acciones:</strong><br>
+          <button onclick="resetDrill()">Reset Drill</button>
+        </div>
+        
+        <div class="logs">
+          <strong>Debug Logs:</strong>
+          <div id="log-output"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="./d3-demo.js"></script>
+</body>
+</html>
