@@ -1,1 +1,0 @@
-export { VisualFormattingSettingsModel } from './formatSettings';

@@ -25,3 +25,9 @@ pbiviz start -p 8090
 ## Notes
 - Formatting: basic data labels toggle and data color are supported.
 - Supports legend-based grouping and multiple measures in Series.
+
+Set-Location -LiteralPath "D:\Data\Custom Graphic\drill_down_donut - Copy"; git show --no-pager --oneline -s 4531a9b; git reset --hard 4531a9b; git status -s -uall; git --no-pager log -n 1 --date=iso --pretty=format:"%h | %ad | %an | %s"
+
+git show --no-pager --oneline -s ef0f4f8; git reset --hard ef0f4f8; git status -s -uall; git --no-pager log -n 1 --date=iso --pretty=format:"%h | %ad | %an | %s"
+
+git --no-pager log -n 10 --date=iso --pretty=format:"%h | %ad | %an | %s"

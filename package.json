@@ -16,9 +16,8 @@
     "make:icon": "node ./scripts/generate-icon.mjs"
   },
   "dependencies": {
-    "@types/d3": "7.4.3",
-    "d3": "7.9.0",
-    "echarts": "^6.0.0",
+    "@types/d3": "^5.16.0",
+    "d3": "^5.16.0",
     "powerbi-visuals-api": "~5.3.0",
     "powerbi-visuals-utils-colorutils": "^6.0.5",
     "powerbi-visuals-utils-dataviewutils": "^6.1.0",

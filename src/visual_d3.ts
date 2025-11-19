@@ -49,19 +49,12 @@ interface GeometryHelpers {
   midRadius: number;
 }
 
-interface SpacingConfig {
-  innerRadiusPercent: number;
-  ringWidthPercent: number;
-  centerYPercent: number;
-}
-
 interface RenderConfig {
   radius: number;
   lineLengthConfig: LineLengthConfig;
   width: number;
   height: number;
   wrap: TextWrapMode;
-  spacing: SpacingConfig;
 }
 
 // 🎨 Clase DonutRenderer (copiada exactamente del ejemplo)
@@ -73,32 +66,26 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig): void {
-    const { radius, lineLengthConfig, width, height, wrap, spacing } = config;
+    const { radius, lineLengthConfig, width, height, wrap } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
     
-    // Calcular posición Y usando centerYPercent
-    const centerY = (height * spacing.centerYPercent) / 100;
-    
     const g = this.svg
       .append("g")
-      .attr("transform", `translate(${width / 2}, ${centerY})`);
+      .attr("transform", `translate(${width / 2}, ${height / 2})`);
 
-    // Configurar generadores D3 con spacing personalizado (como en la versión ECharts)
+    // Configurar generadores D3
     const pie = d3.pie<any>().value((d: DonutDataPoint) => d.value);
-    const innerRadius = radius * (spacing.innerRadiusPercent / 100);
-    const outerRadius = radius * ((spacing.innerRadiusPercent + spacing.ringWidthPercent) / 100);
-    
     const arc = d3.arc<d3.PieArcDatum<DonutDataPoint>>()
-      .innerRadius(innerRadius)
-      .outerRadius(outerRadius);
+      .innerRadius(radius * DONUT_CONFIG.INNER_RADIUS_RATIO)
+      .outerRadius(radius * DONUT_CONFIG.OUTER_RADIUS_RATIO);
     const color = d3.scaleOrdinal(d3.schemeSet2);
 
     // Renderizar componentes
     this.renderDonut(g, viewModel, pie, arc, color);
-    this.renderLines(g, viewModel, pie, outerRadius, lineLengthConfig);
-    this.renderLabels(g, viewModel, pie, outerRadius, lineLengthConfig, wrap);
+    this.renderLines(g, viewModel, pie, radius, lineLengthConfig);
+    this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, wrap);
   }
 
   public renderNoData(width: number, height: number): void {
@@ -112,33 +99,30 @@ class DonutRenderer {
       .text("No data available");
   }
 
-  private getGeometryHelpers(d: d3.PieArcDatum<any>, outerRadius: number): GeometryHelpers {
+  private getGeometryHelpers(d: d3.PieArcDatum<any>, radius: number): GeometryHelpers {
     const mid = (d.startAngle + d.endAngle) / 2;
     const direction = mid < Math.PI ? 1 : -1;
     return {
       mid,
       direction,
-      outerRadius: outerRadius,
-      midRadius: outerRadius * 1.1  // Las líneas salen desde justo fuera del borde exterior
+      outerRadius: radius * DONUT_CONFIG.OUTER_RADIUS_RATIO,
+      midRadius: radius * DONUT_CONFIG.LINE_START_RATIO
     };
   }
 
   private calculateLinePoints(helpers: GeometryHelpers, lineLength: number): number[][] {
     const { mid, direction, outerRadius, midRadius } = helpers;
     
-    // Punto de inicio: desde el borde exterior del donut
     const startPoint = [
       Math.cos(mid - Math.PI / 2) * outerRadius,
       Math.sin(mid - Math.PI / 2) * outerRadius
     ];
     
-    // Punto medio: un poco más afuera para hacer la línea visible
     const midPoint = [
       Math.cos(mid - Math.PI / 2) * midRadius,
       Math.sin(mid - Math.PI / 2) * midRadius
     ];
     
-    // Punto final: se extiende horizontalmente según lineLength
     const finalPoint = [
       midPoint[0] + (lineLength * direction),
       midPoint[1]
@@ -266,9 +250,6 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       return;
     }
 
-    // Actualizar configuraciones de formato
-    this.formattingSettings = this.formattingSettingsService.populateFormattingSettingsModel(VisualFormattingSettingsModel, dataView);
-
     // Actualizar tamaño del SVG
     this.svg
       .attr("width", options.viewport.width)
@@ -281,8 +262,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       return;
     }
 
-    // Configurar renderizado con spacing settings
-    const spacingConfig = this.getSpacingConfig(dataView);
+    // Configurar renderizado
     const radius = Math.min(options.viewport.width, options.viewport.height) / 2 - DONUT_CONFIG.MARGIN;
     const lineLengthConfig = this.getLineLengthConfig(dataView, viewModel);
     
@@ -291,8 +271,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       lineLengthConfig,
       width: options.viewport.width,
       height: options.viewport.height,
-      wrap: DONUT_CONFIG.DEFAULT_WRAP,
-      spacing: spacingConfig
+      wrap: DONUT_CONFIG.DEFAULT_WRAP
     };
 
     // Renderizar
@@ -309,16 +288,10 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const values = categorical.values[0].values;
     
     const dataPoints: DonutDataPoint[] = [];
-    
-    // Calcular total de manera segura
-    let total = 0;
-    for (let i = 0; i < values.length; i++) {
-      const rawValue = values[i];
-      const num = typeof rawValue === "number" ? rawValue : Number(rawValue);
-      if (!isNaN(num) && isFinite(num)) {
-        total += num;
-      }
-    }
+    const total = values.reduce((sum: number, val: any) => {
+      const num = typeof val === "number" ? val : Number(val);
+      return sum + (isNaN(num) ? 0 : num);
+    }, 0);
 
     for (let i = 0; i < categories.length; i++) {
       const category = categories[i] == null ? "(Blank)" : String(categories[i]);
@@ -356,82 +329,30 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   }
 
   private getLineLengthMode(dataView: powerbi.DataView): LineLengthMode {
-    const objects = dataView?.metadata?.objects;
-    if (objects?.labelTuning?.lineLengthMode) {
-      const mode = objects.labelTuning.lineLengthMode as string;
-      return (mode === "individual" ? "individual" : "all") as LineLengthMode;
+    if (dataView?.metadata?.objects?.labelTuning?.lineLengthMode) {
+      return dataView.metadata.objects.labelTuning.lineLengthMode as LineLengthMode;
     }
     return DONUT_CONFIG.DEFAULT_LINE_MODE;
   }
 
   private getGlobalLineLength(dataView: powerbi.DataView): number {
-    const objects = dataView?.metadata?.objects;
-    if (objects?.labelTuning?.lineLength) {
-      const value = objects.labelTuning.lineLength as number;
-      if (typeof value === 'number' && !isNaN(value)) {
-        return Math.max(DONUT_CONFIG.MIN_LINE_LENGTH, Math.min(DONUT_CONFIG.MAX_LINE_LENGTH, value));
-      }
+    if (dataView?.metadata?.objects?.labelTuning?.lineLength) {
+      const value = dataView.metadata.objects.labelTuning.lineLength as number;
+      return Math.max(DONUT_CONFIG.MIN_LINE_LENGTH, Math.min(DONUT_CONFIG.MAX_LINE_LENGTH, value));
     }
     return DONUT_CONFIG.DEFAULT_LINE_LENGTH;
   }
 
   private getCategoryLineLength(dataView: powerbi.DataView, categoryIndex: number): number {
     const propertyName = `lineLength_${categoryIndex}`;
-    const objects = dataView?.metadata?.objects;
-    if (objects?.labelTuning?.[propertyName]) {
-      const value = objects.labelTuning[propertyName] as number;
-      if (typeof value === 'number' && !isNaN(value)) {
-        return Math.max(DONUT_CONFIG.MIN_LINE_LENGTH, Math.min(DONUT_CONFIG.MAX_LINE_LENGTH, value));
-      }
+    if (dataView?.metadata?.objects?.labelTuning?.[propertyName]) {
+      const value = dataView.metadata.objects.labelTuning[propertyName] as number;
+      return Math.max(DONUT_CONFIG.MIN_LINE_LENGTH, Math.min(DONUT_CONFIG.MAX_LINE_LENGTH, value));
     }
     return DONUT_CONFIG.DEFAULT_LINE_LENGTH;
   }
 
-  private getSpacingConfig(dataView: powerbi.DataView): SpacingConfig {
-    const objects = dataView?.metadata?.objects;
-    const spacing = objects?.spacing;
-    
-    return {
-      innerRadiusPercent: this.clampValue(spacing?.innerRadiusPercent, 24, 5, 90),
-      ringWidthPercent: this.clampValue(spacing?.ringWidthPercent, 58, 4, 90),
-      centerYPercent: this.clampValue(spacing?.centerYPercent, 58, 0, 100)
-    };
-  }
-
-  private clampValue(value: any, defaultValue: number, min: number, max: number): number {
-    if (typeof value === 'number' && !isNaN(value)) {
-      return Math.max(min, Math.min(max, value));
-    }
-    return defaultValue;
-  }
-
   public getFormattingModel(): powerbi.visuals.FormattingModel {
-    // Actualizar visibilidad de slices según el modo
-    const isIndividualMode = this.formattingSettings.labelTuningCard.lineLengthMode.value.value === "individual";
-    
-    // Controlar visibilidad de configuraciones individuales
-    this.formattingSettings.labelTuningCard.lineLength.visible = !isIndividualMode;
-    
-    // Configurar slices individuales con nombres de categorías si están disponibles
-    const individualSlices = [
-      this.formattingSettings.labelTuningCard.lineLength_0,
-      this.formattingSettings.labelTuningCard.lineLength_1,
-      this.formattingSettings.labelTuningCard.lineLength_2,
-      this.formattingSettings.labelTuningCard.lineLength_3,
-      this.formattingSettings.labelTuningCard.lineLength_4,
-      this.formattingSettings.labelTuningCard.lineLength_5,
-      this.formattingSettings.labelTuningCard.lineLength_6,
-      this.formattingSettings.labelTuningCard.lineLength_7,
-      this.formattingSettings.labelTuningCard.lineLength_8,
-      this.formattingSettings.labelTuningCard.lineLength_9
-    ];
-    
-    individualSlices.forEach((slice, index) => {
-      slice.visible = isIndividualMode;
-      // TODO: Actualizar displayName con nombre de categoría real cuando esté disponible
-      slice.displayName = `Category ${index} Line Length`;
-    });
-    
     return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
   }
 }

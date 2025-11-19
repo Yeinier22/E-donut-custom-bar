@@ -10,253 +10,349 @@ import FormattingSettingsModel = formattingSettings.Model;
  * Data Labels Formatting Card
  */
 class DataLabelsCardSettings extends FormattingSettingsCard {
-    show = new formattingSettings.ToggleSwitch({
-        name: "show",
-        displayName: "Show Data Labels",
-        value: false
-    });
+  show = new formattingSettings.ToggleSwitch({
+    name: "show",
+    displayName: "Show Data Labels",
+    value: false,
+  });
 
-    labelPlacement = new formattingSettings.ItemDropdown({
-        name: "labelPlacement",
-        displayName: "Label Placement",
-        items: [
-            { displayName: "Inside", value: "inside" },
-            { displayName: "Outside", value: "outside" }
-        ],
-        value: { displayName: "Outside", value: "outside" }
-    });
+  labelPlacement = new formattingSettings.ItemDropdown({
+    name: "labelPlacement",
+    displayName: "Label Placement",
+    items: [
+      { displayName: "Inside", value: "inside" },
+      { displayName: "Outside", value: "outside" },
+    ],
+    value: { displayName: "Outside", value: "outside" },
+  });
 
-    placementMode = new formattingSettings.ItemDropdown({
-        name: "placementMode",
-        displayName: "Placement Mode",
-        items: [
-            { displayName: "Align", value: "align" },
-            { displayName: "Wrap", value: "wrap" }
-        ],
-        value: { displayName: "Wrap", value: "wrap" }
-    });
+  placementMode = new formattingSettings.ItemDropdown({
+    name: "placementMode",
+    displayName: "Placement Mode",
+    items: [
+      { displayName: "Align", value: "align" },
+      { displayName: "Wrap", value: "wrap" },
+    ],
+    value: { displayName: "Wrap", value: "wrap" },
+  });
 
-    fontFamily = new formattingSettings.TextInput({
-        name: "fontFamily",
-        displayName: "Font Family",
-        value: "Segoe UI",
-        placeholder: "Segoe UI"
-    });
+  fontFamily = new formattingSettings.TextInput({
+    name: "fontFamily",
+    displayName: "Font Family",
+    value: "Segoe UI",
+    placeholder: "Segoe UI",
+  });
 
-    fontSize = new formattingSettings.NumUpDown({
-        name: "fontSize",
-        displayName: "Font Size",
-        value: 11
-    });
+  fontSize = new formattingSettings.NumUpDown({
+    name: "fontSize",
+    displayName: "Font Size",
+    value: 11,
+  });
 
-    displayUnit = new formattingSettings.ItemDropdown({
-        name: "displayUnit",
-        displayName: "Display units",
-        items: [
-            { displayName: "Auto", value: "auto" },
-            { displayName: "None", value: "none" },
-            { displayName: "Thousands", value: "thousand" },
-            { displayName: "Millions", value: "million" },
-            { displayName: "Billions", value: "billion" }
-        ],
-        value: { displayName: "Auto", value: "auto" }
-    });
+  displayUnit = new formattingSettings.ItemDropdown({
+    name: "displayUnit",
+    displayName: "Display units",
+    items: [
+      { displayName: "Auto", value: "auto" },
+      { displayName: "None", value: "none" },
+      { displayName: "Thousands", value: "thousand" },
+      { displayName: "Millions", value: "million" },
+      { displayName: "Billions", value: "billion" },
+    ],
+    value: { displayName: "Auto", value: "auto" },
+  });
 
-    valueDecimals = new formattingSettings.NumUpDown({
-        name: "valueDecimals",
-        displayName: "Value decimal places",
-        value: 2
-    });
+  valueDecimals = new formattingSettings.NumUpDown({
+    name: "valueDecimals",
+    displayName: "Value decimal places",
+    value: 2,
+  });
 
-    valueType = new formattingSettings.ItemDropdown({
-        name: "valueType",
-        displayName: "Value type",
-        items: [
-            { displayName: "Auto", value: "auto" },
-            { displayName: "Number", value: "number" },
-            { displayName: "Currency", value: "currency" },
-            { displayName: "Percent", value: "percent" }
-        ],
-        value: { displayName: "Auto", value: "auto" }
-    });
+  valueType = new formattingSettings.ItemDropdown({
+    name: "valueType",
+    displayName: "Value type",
+    items: [
+      { displayName: "Auto", value: "auto" },
+      { displayName: "Number", value: "number" },
+      { displayName: "Currency", value: "currency" },
+      { displayName: "Percent", value: "percent" },
+    ],
+    value: { displayName: "Auto", value: "auto" },
+  });
 
-    color = new formattingSettings.ColorPicker({
-        name: "color",
-        displayName: "Color",
-        value: { value: "#444444" }
-    });
+  color = new formattingSettings.ColorPicker({
+    name: "color",
+    displayName: "Color",
+    value: { value: "#444444" },
+  });
 
-    name: string = "dataLabels";
-    displayName: string = "Data Labels";
-    slices: Array<FormattingSettingsSlice> = [
-        this.show,
-        this.labelPlacement,
-        this.placementMode,
-        this.fontFamily,
-        this.fontSize,
-        this.color,
-        this.displayUnit,
-        this.valueDecimals,
-        this.valueType
-    ];
+  name: string = "dataLabels";
+  displayName: string = "Data Labels";
+  slices: Array<FormattingSettingsSlice> = [
+    this.show,
+    this.labelPlacement,
+    this.placementMode,
+    this.fontFamily,
+    this.fontSize,
+    this.color,
+    this.displayUnit,
+    this.valueDecimals,
+    this.valueType,
+  ];
 }
 
 /**
  * Data Labels (Drill) Formatting Card
  */
 class DataLabelsDrillCardSettings extends FormattingSettingsCard {
-    displayUnit = new formattingSettings.ItemDropdown({
-        name: "displayUnit",
-        displayName: "Display units",
-        items: [
-            { displayName: "Auto", value: "auto" },
-            { displayName: "None", value: "none" },
-            { displayName: "Thousands", value: "thousand" },
-            { displayName: "Millions", value: "million" },
-            { displayName: "Billions", value: "billion" }
-        ],
-        value: { displayName: "Auto", value: "auto" }
-    });
+  displayUnit = new formattingSettings.ItemDropdown({
+    name: "displayUnit",
+    displayName: "Display units",
+    items: [
+      { displayName: "Auto", value: "auto" },
+      { displayName: "None", value: "none" },
+      { displayName: "Thousands", value: "thousand" },
+      { displayName: "Millions", value: "million" },
+      { displayName: "Billions", value: "billion" },
+    ],
+    value: { displayName: "Auto", value: "auto" },
+  });
 
-    valueDecimals = new formattingSettings.NumUpDown({
-        name: "valueDecimals",
-        displayName: "Value decimal places",
-        value: 2
-    });
+  valueDecimals = new formattingSettings.NumUpDown({
+    name: "valueDecimals",
+    displayName: "Value decimal places",
+    value: 2,
+  });
 
-    valueType = new formattingSettings.ItemDropdown({
-        name: "valueType",
-        displayName: "Value type",
-        items: [
-            { displayName: "Auto", value: "auto" },
-            { displayName: "Number", value: "number" },
-            { displayName: "Currency", value: "currency" },
-            { displayName: "Percent", value: "percent" }
-        ],
-        value: { displayName: "Auto", value: "auto" }
-    });
+  valueType = new formattingSettings.ItemDropdown({
+    name: "valueType",
+    displayName: "Value type",
+    items: [
+      { displayName: "Auto", value: "auto" },
+      { displayName: "Number", value: "number" },
+      { displayName: "Currency", value: "currency" },
+      { displayName: "Percent", value: "percent" },
+    ],
+    value: { displayName: "Auto", value: "auto" },
+  });
 
-    name: string = "dataLabelsDrill";
-    displayName: string = "Data Labels (Drill)";
-    slices: Array<FormattingSettingsSlice> = [
-        this.displayUnit,
-        this.valueDecimals,
-        this.valueType
-    ];
+  name: string = "dataLabelsDrill";
+  displayName: string = "Data Labels (Drill)";
+  slices: Array<FormattingSettingsSlice> = [
+    this.displayUnit,
+    this.valueDecimals,
+    this.valueType,
+  ];
 }
 
 /**
  * Data Point Formatting Card
  */
 class DataPointCardSettings extends FormattingSettingsCard {
-    fill = new formattingSettings.ColorPicker({
-        name: "fill",
-        displayName: "Color",
-        value: { value: "" }
-    });
+  fill = new formattingSettings.ColorPicker({
+    name: "fill",
+    displayName: "Color",
+    value: { value: "" },
+  });
 
-    name: string = "dataPoint";
-    displayName: string = "Data colors";
-    slices: Array<FormattingSettingsSlice> = [this.fill];
+  name: string = "dataPoint";
+  displayName: string = "Data colors";
+  slices: Array<FormattingSettingsSlice> = [this.fill];
 }
 
 /**
  * Spacing Formatting Card
  */
 class SpacingCardSettings extends FormattingSettingsCard {
-    innerRadiusPercent = new formattingSettings.NumUpDown({
-        name: "innerRadiusPercent",
-        displayName: "Inner radius (%)",
-        value: 60
-    });
+  innerRadiusPercent = new formattingSettings.NumUpDown({
+    name: "innerRadiusPercent",
+    displayName: "Inner radius (%)",
+    value: 60,
+  });
 
-    ringWidthPercent = new formattingSettings.NumUpDown({
-        name: "ringWidthPercent",
-        displayName: "Ring width (%)",
-        value: 35
-    });
+  ringWidthPercent = new formattingSettings.NumUpDown({
+    name: "ringWidthPercent",
+    displayName: "Ring width (%)",
+    value: 35,
+  });
 
-    centerYPercent = new formattingSettings.NumUpDown({
-        name: "centerYPercent",
-        displayName: "Vertical position (%)",
-        value: 50
-    });
+  centerYPercent = new formattingSettings.NumUpDown({
+    name: "centerYPercent",
+    displayName: "Vertical position (%)",
+    value: 50,
+  });
 
-    name: string = "spacing";
-    displayName: string = "Spacing";
-    slices: Array<FormattingSettingsSlice> = [this.innerRadiusPercent, this.ringWidthPercent, this.centerYPercent];
+  name: string = "spacing";
+  displayName: string = "Spacing";
+  slices: Array<FormattingSettingsSlice> = [
+    this.innerRadiusPercent,
+    this.ringWidthPercent,
+    this.centerYPercent,
+  ];
 }
 
 /**
  * Legend Formatting Card
  */
 class LegendCardSettings extends FormattingSettingsCard {
-    show = new formattingSettings.ToggleSwitch({
-        name: "show",
-        displayName: "Show legend",
-        value: true
-    });
+  show = new formattingSettings.ToggleSwitch({
+    name: "show",
+    displayName: "Show legend",
+    value: true,
+  });
 
-    position = new formattingSettings.ItemDropdown({
-        name: "position",
-        displayName: "Position",
-        items: [
-            { displayName: "Top", value: "top" },
-            { displayName: "Bottom", value: "bottom" },
-            { displayName: "Left", value: "left" },
-            { displayName: "Right", value: "right" }
-        ],
-        value: { displayName: "Right", value: "right" }
-    });
+  position = new formattingSettings.ItemDropdown({
+    name: "position",
+    displayName: "Position",
+    items: [
+      { displayName: "Top", value: "top" },
+      { displayName: "Bottom", value: "bottom" },
+      { displayName: "Left", value: "left" },
+      { displayName: "Right", value: "right" },
+    ],
+    value: { displayName: "Right", value: "right" },
+  });
 
-    fontSize = new formattingSettings.NumUpDown({
-        name: "fontSize",
-        displayName: "Font Size",
-        value: 10
-    });
+  fontSize = new formattingSettings.NumUpDown({
+    name: "fontSize",
+    displayName: "Font Size",
+    value: 10,
+  });
 
-    name: string = "legend";
-    displayName: string = "Legend";
-    slices: Array<FormattingSettingsSlice> = [this.show, this.position, this.fontSize];
+  name: string = "legend";
+  displayName: string = "Legend";
+  slices: Array<FormattingSettingsSlice> = [
+    this.show,
+    this.position,
+    this.fontSize,
+  ];
 }
 
 /**
  * Label Tuning Formatting Card
  */
 class LabelTuningCardSettings extends FormattingSettingsCard {
-    lineLength = new formattingSettings.NumUpDown({
-        name: "lineLength",
-        displayName: "Line Length",
-        value: 20
-    });
+  lineLengthMode = new formattingSettings.ItemDropdown({
+    name: "lineLengthMode",
+    displayName: "Line Length Mode",
+    items: [
+      { displayName: "All same", value: "all" },
+      { displayName: "Individual", value: "individual" },
+    ],
+    value: { displayName: "All same", value: "all" },
+  });
 
-    curveTension = new formattingSettings.NumUpDown({
-        name: "curveTension",
-        displayName: "Curve Tension",
-        value: 0.9
-    });
+  lineLength = new formattingSettings.NumUpDown({
+    name: "lineLength",
+    displayName: "Line Length",
+    value: 20,
+  });
 
-    textSpacing = new formattingSettings.NumUpDown({
-        name: "textSpacing",
-        displayName: "Text Line Spacing",
-        value: 4
-    });
+  // Individual line length controls (will be shown/hidden based on mode)
+  lineLength_0 = new formattingSettings.NumUpDown({
+    name: "lineLength_0",
+    displayName: "Category 0 Line Length",
+    value: 20,
+  });
 
-    columnOffset = new formattingSettings.NumUpDown({
-        name: "columnOffset",
-        displayName: "Label Column Offset (px)",
-        value: 0
-    });
+  lineLength_1 = new formattingSettings.NumUpDown({
+    name: "lineLength_1",
+    displayName: "Category 1 Line Length",
+    value: 20,
+  });
 
-    sidePadding = new formattingSettings.NumUpDown({
-        name: "sidePadding",
-        displayName: "Side Padding (px)",
-        value: 0
-    });
+  lineLength_2 = new formattingSettings.NumUpDown({
+    name: "lineLength_2",
+    displayName: "Category 2 Line Length",
+    value: 20,
+  });
 
-    name: string = "labelTuning";
-    displayName: string = "Label & Line Tuning";
-    slices: Array<FormattingSettingsSlice> = [this.lineLength, this.curveTension, this.textSpacing, this.columnOffset, this.sidePadding];
+  lineLength_3 = new formattingSettings.NumUpDown({
+    name: "lineLength_3",
+    displayName: "Category 3 Line Length",
+    value: 20,
+  });
+
+  lineLength_4 = new formattingSettings.NumUpDown({
+    name: "lineLength_4",
+    displayName: "Category 4 Line Length",
+    value: 20,
+  });
+
+  lineLength_5 = new formattingSettings.NumUpDown({
+    name: "lineLength_5",
+    displayName: "Category 5 Line Length",
+    value: 20,
+  });
+
+  lineLength_6 = new formattingSettings.NumUpDown({
+    name: "lineLength_6",
+    displayName: "Category 6 Line Length",
+    value: 20,
+  });
+
+  lineLength_7 = new formattingSettings.NumUpDown({
+    name: "lineLength_7",
+    displayName: "Category 7 Line Length",
+    value: 20,
+  });
+
+  lineLength_8 = new formattingSettings.NumUpDown({
+    name: "lineLength_8",
+    displayName: "Category 8 Line Length",
+    value: 20,
+  });
+
+  lineLength_9 = new formattingSettings.NumUpDown({
+    name: "lineLength_9",
+    displayName: "Category 9 Line Length",
+    value: 20,
+  });
+
+  curveTension = new formattingSettings.NumUpDown({
+    name: "curveTension",
+    displayName: "Curve Tension",
+    value: 0.9,
+  });
+
+  textSpacing = new formattingSettings.NumUpDown({
+    name: "textSpacing",
+    displayName: "Text Line Spacing",
+    value: 4,
+  });
+
+  columnOffset = new formattingSettings.NumUpDown({
+    name: "columnOffset",
+    displayName: "Label Column Offset (px)",
+    value: 0,
+  });
+
+  sidePadding = new formattingSettings.NumUpDown({
+    name: "sidePadding",
+    displayName: "Side Padding (px)",
+    value: 0,
+  });
+
+  name: string = "labelTuning";
+  displayName: string = "Label & Line Tuning";
+  slices: Array<FormattingSettingsSlice> = [
+    this.lineLengthMode,
+    this.lineLength,
+    this.lineLength_0,
+    this.lineLength_1,
+    this.lineLength_2,
+    this.lineLength_3,
+    this.lineLength_4,
+    this.lineLength_5,
+    this.lineLength_6,
+    this.lineLength_7,
+    this.lineLength_8,
+    this.lineLength_9,
+    this.curveTension,
+    this.textSpacing,
+    this.columnOffset,
+    this.sidePadding,
+  ];
 }
 
 /**
@@ -264,61 +360,67 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
  * Nota: Solo UI. No modifica capabilities.
  */
 class LabelTuningDrillCardSettings extends FormattingSettingsCard {
-    lineLength = new formattingSettings.NumUpDown({
-        name: "lineLength",
-        displayName: "Line Length",
-        value: 20
-    });
+  lineLength = new formattingSettings.NumUpDown({
+    name: "lineLength",
+    displayName: "Line Length",
+    value: 20,
+  });
 
-    curveTension = new formattingSettings.NumUpDown({
-        name: "curveTension",
-        displayName: "Curve Tension",
-        value: 0.9
-    });
+  curveTension = new formattingSettings.NumUpDown({
+    name: "curveTension",
+    displayName: "Curve Tension",
+    value: 0.9,
+  });
 
-    textSpacing = new formattingSettings.NumUpDown({
-        name: "textSpacing",
-        displayName: "Text Line Spacing",
-        value: 4
-    });
+  textSpacing = new formattingSettings.NumUpDown({
+    name: "textSpacing",
+    displayName: "Text Line Spacing",
+    value: 4,
+  });
 
-    columnOffset = new formattingSettings.NumUpDown({
-        name: "columnOffset",
-        displayName: "Label Column Offset (px)",
-        value: 0
-    });
+  columnOffset = new formattingSettings.NumUpDown({
+    name: "columnOffset",
+    displayName: "Label Column Offset (px)",
+    value: 0,
+  });
 
-    sidePadding = new formattingSettings.NumUpDown({
-        name: "sidePadding",
-        displayName: "Side Padding (px)",
-        value: 0
-    });
+  sidePadding = new formattingSettings.NumUpDown({
+    name: "sidePadding",
+    displayName: "Side Padding (px)",
+    value: 0,
+  });
 
-    // Importante: El nombre de objeto difiere del global para que pueda persistir aparte si el capabilities lo soporta
-    name: string = "labelTuningDrill";
-    displayName: string = "Label & Line Tuning (Drill)";
-    slices: Array<FormattingSettingsSlice> = [this.lineLength, this.curveTension, this.textSpacing, this.columnOffset, this.sidePadding];
+  // Importante: El nombre de objeto difiere del global para que pueda persistir aparte si el capabilities lo soporta
+  name: string = "labelTuningDrill";
+  displayName: string = "Label & Line Tuning (Drill)";
+  slices: Array<FormattingSettingsSlice> = [
+    this.lineLength,
+    this.curveTension,
+    this.textSpacing,
+    this.columnOffset,
+    this.sidePadding,
+  ];
 }
 
 /**
  * Visual settings model class
  */
 export class VisualFormattingSettingsModel extends FormattingSettingsModel {
-    dataLabelsCard = new DataLabelsCardSettings();
-    dataLabelsDrillCard = new DataLabelsDrillCardSettings();
-    dataPointCard = new DataPointCardSettings();
-    spacingCard = new SpacingCardSettings();
-    legendCard = new LegendCardSettings();
-    labelTuningCard = new LabelTuningCardSettings();
-    labelTuningDrillCard = new LabelTuningDrillCardSettings();
+  dataLabelsCard = new DataLabelsCardSettings();
+  dataLabelsDrillCard = new DataLabelsDrillCardSettings();
+  dataPointCard = new DataPointCardSettings();
+  spacingCard = new SpacingCardSettings();
+  legendCard = new LegendCardSettings();
+  labelTuningCard = new LabelTuningCardSettings();
+  labelTuningDrillCard = new LabelTuningDrillCardSettings();
 
-    cards = [
-        this.dataLabelsCard,
-        this.dataLabelsDrillCard,
-        this.dataPointCard,
-        this.spacingCard,
-        this.legendCard,
-        this.labelTuningCard,
-        this.labelTuningDrillCard
-    ];
+  cards = [
+    this.dataLabelsCard,
+    this.dataLabelsDrillCard,
+    this.dataPointCard,
+    this.spacingCard,
+    this.legendCard,
+    this.labelTuningCard,
+    this.labelTuningDrillCard,
+  ];
 }

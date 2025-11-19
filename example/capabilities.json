@@ -1,0 +1,77 @@
+{
+  "dataRoles": [
+    { "name": "category", "kind": "Grouping", "displayName": "Category" },
+    { "name": "legend", "kind": "Grouping", "displayName": "Legend" },
+    { "name": "series", "kind": "GroupingOrMeasure", "displayName": "Series" },
+    { "name": "labelVisibility", "kind": "Measure", "displayName": "Label Visibility (DAX)", "description": "Optional: measure that returns 1 to show label, 0 to hide" }
+  ],
+  "dataViewMappings": [
+    {
+      "categorical": {
+        "categories": {
+          "select": [
+            { "for": { "in": "category" } }
+          ],
+          "dataReductionAlgorithm": { "top": {} }
+        },
+        "values": {
+          "group": {
+            "by": "legend",
+            "select": [
+              { "bind": { "to": "series" } },
+              { "for": { "in": "labelVisibility" } }
+            ],
+            "dataReductionAlgorithm": { "top": {} }
+          }
+        }
+      }
+    }
+  ],
+  "supportsHighlight": true,
+  "supportsMultiVisualSelection": true,
+  "objects": {
+    "labelTuning": {
+      "displayName": "Label & Line Tuning",
+      "properties": {
+        "lineLengthMode": {
+          "displayName": "Mode",
+          "type": {
+            "enumeration": [
+              { "displayName": "All", "value": "all" },
+              { "displayName": "Individual", "value": "individual" }
+            ]
+          }
+        },
+        "lineLength": {
+          "displayName": "Line Length",
+          "type": { "numeric": true }
+        },
+        "lineLength_0": { "displayName": "Category 1 - Line Length", "type": { "numeric": true } },
+        "lineLength_1": { "displayName": "Category 2 - Line Length", "type": { "numeric": true } },
+        "lineLength_2": { "displayName": "Category 3 - Line Length", "type": { "numeric": true } },
+        "lineLength_3": { "displayName": "Category 4 - Line Length", "type": { "numeric": true } },
+        "lineLength_4": { "displayName": "Category 5 - Line Length", "type": { "numeric": true } },
+        "lineLength_5": { "displayName": "Category 6 - Line Length", "type": { "numeric": true } },
+        "lineLength_6": { "displayName": "Category 7 - Line Length", "type": { "numeric": true } },
+        "lineLength_7": { "displayName": "Category 8 - Line Length", "type": { "numeric": true } },
+        "lineLength_8": { "displayName": "Category 9 - Line Length", "type": { "numeric": true } },
+        "lineLength_9": { "displayName": "Category 10 - Line Length", "type": { "numeric": true } }
+      }
+    },
+    "labelPlacement": {
+      "displayName": "Label Placement",
+      "properties": {
+        "wrap": {
+          "displayName": "Wrap",
+          "type": {
+            "enumeration": [
+              { "displayName": "Wrap", "value": "wrap" },
+              { "displayName": "Single line", "value": "single" }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "privileges": []
+}
