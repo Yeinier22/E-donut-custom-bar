@@ -188,7 +188,7 @@ class DonutRenderer {
   }
 
   private calculateLinePoints(helpers: GeometryHelpers, lineLength: number): number[][] {
-    const { mid, direction, outerRadius, midRadius } = helpers;
+    const { mid, direction, outerRadius } = helpers;
     
     // Punto de inicio: desde el borde exterior del donut
     const startPoint = [
@@ -196,15 +196,19 @@ class DonutRenderer {
       Math.sin(mid - Math.PI / 2) * outerRadius
     ];
     
-    // Punto medio: un poco más afuera para hacer la línea visible
+    // Punto medio: pequeña extensión radial (proporcional al radio)
+    const radialExtension = outerRadius + (outerRadius * 0.1); // 10% del radio como extensión
     const midPoint = [
-      Math.cos(mid - Math.PI / 2) * midRadius,
-      Math.sin(mid - Math.PI / 2) * midRadius
+      Math.cos(mid - Math.PI / 2) * radialExtension,
+      Math.sin(mid - Math.PI / 2) * radialExtension
     ];
     
-    // Punto final: se extiende horizontalmente según lineLength
+    // Punto final: línea horizontal proporcional al radio
+    // lineLength viene como valor 0-100, convertirlo a proporción del radio
+    const baseLength = outerRadius * 0.3; // 30% del radio como longitud base
+    const proportionalLength = baseLength * (lineLength / 50); // Normalizar: 50 = longitud base
     const finalPoint = [
-      midPoint[0] + (lineLength * direction),
+      midPoint[0] + (proportionalLength * direction),
       midPoint[1]
     ];
 
@@ -212,16 +216,23 @@ class DonutRenderer {
   }
 
   private calculateTextPosition(helpers: GeometryHelpers, lineLength: number, category: string, verticalConfig: VerticalPositionConfig): [number, number] {
-    const { mid, direction, midRadius } = helpers;
+    const { mid, direction, outerRadius } = helpers;
     
+    // Usar el mismo cálculo que en calculateLinePoints para consistencia
+    const radialExtension = outerRadius + (outerRadius * 0.1);
     const midPoint = [
-      Math.cos(mid - Math.PI / 2) * midRadius,
-      Math.sin(mid - Math.PI / 2) * midRadius
+      Math.cos(mid - Math.PI / 2) * radialExtension,
+      Math.sin(mid - Math.PI / 2) * radialExtension
     ];
     
-    const textX = midPoint[0] + (lineLength * direction) + (DONUT_CONFIG.TEXT_SPACING * direction);
+    // Calcular longitud proporcional idéntica a calculateLinePoints
+    const baseLength = outerRadius * 0.3;
+    const proportionalLength = baseLength * (lineLength / 50);
+    // Spacing proporcional al radio
+    const proportionalSpacing = (outerRadius * 0.08); // 8% del radio como spacing
+    const textX = midPoint[0] + (proportionalLength * direction) + (proportionalSpacing * direction);
     const verticalOffset = this.getVerticalOffsetForCategory(category, verticalConfig);
-    const textY = midPoint[1] + verticalOffset; // Aplicar offset vertical manual
+    const textY = midPoint[1] + verticalOffset;
     
     return [textX, textY];
   }
@@ -861,8 +872,9 @@ class DonutRenderer {
       Math.sin(helpers.mid - Math.PI / 2) * helpers.outerRadius
     ];
     
-    // Punto intermedio: extensión radial corta
-    const radialExtension = helpers.outerRadius + 15;
+    // Punto intermedio: extensión radial corta (proporcional al radio)
+    const proportionalExtension = helpers.outerRadius * 0.1; // 10% del radio exterior
+    const radialExtension = helpers.outerRadius + proportionalExtension;
     const midPoint = [
       Math.cos(helpers.mid - Math.PI / 2) * radialExtension,
       Math.sin(helpers.mid - Math.PI / 2) * radialExtension
@@ -870,7 +882,8 @@ class DonutRenderer {
     
     // Punto final: conectar automáticamente al inicio del label reposicionado
     const isRightSide = helpers.direction > 0;
-    const labelStartX = isRightSide ? labelInfo.textX - 5 : labelInfo.textX + 5; // Pequeño margen
+    const proportionalMargin = helpers.outerRadius * 0.02; // 2% del radio como margen
+    const labelStartX = isRightSide ? labelInfo.textX - proportionalMargin : labelInfo.textX + proportionalMargin;
     const finalPoint = [
       labelStartX,
       labelInfo.textY // Y ajustada automáticamente por el sistema de colisiones
