@@ -305,34 +305,121 @@ class DonutRenderer {
                              dataLabels: DataLabelsConfig): void {
     const containerWidth = parseInt(this.svg.attr("width")) || 400;
     const centerX = containerWidth / 2;
-    const margin = 10; // Balance entre conservador y funcional
+    const margin = 10;
     
-    pieData.forEach((d) => {
+    // Preparar información de todos los labels para detección de colisiones
+    const labelInfos = pieData.map((d) => {
       const helpers = this.getGeometryHelpers(d, radius);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
       const [textX, textY] = this.calculateTextPosition(helpers, lineLength);
-      
-      const textGroup = g.append("g")
-        .attr("transform", `translate(${textX}, ${textY})`);
-
-      // Usar los datos formateados
       const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
       const textAnchor = this.getTextAnchor(d, radius, "auto");
       const absoluteTextX = centerX + textX;
       
-      // Verificar si el texto completo cabe
-      const fullTextWidth = this.estimateTextWidth(labelText, dataLabels.fontSize);
+      // Obtener el layout que se usará para calcular dimensiones
+      const availableWidth = helpers.direction < 0 ? absoluteTextX - margin : containerWidth - absoluteTextX - margin;
+      const bestLayout = this.selectBestLayout(this.parseLabel(labelText), dataLabels.fontSize, availableWidth);
       
-      let willOverflow = false;
-      if (helpers.direction < 0) {
-        willOverflow = (absoluteTextX - fullTextWidth - margin) < 0;
-      } else {
-        willOverflow = (absoluteTextX + fullTextWidth + margin) > containerWidth;
-      }
-      
-      // Sistema adaptativo de layout como una web responsive
-      this.renderAdaptiveText(textGroup, labelText, textAnchor, dataLabels, helpers, lineLength, absoluteTextX, containerWidth, margin);
+      return {
+        d,
+        helpers,
+        lineLength,
+        textX,
+        textY: textY,
+        labelText,
+        textAnchor,
+        absoluteTextX,
+        bestLayout,
+        originalY: textY,
+        lineCount: bestLayout.lines.length
+      };
     });
+    
+    // Aplicar separación automática anti-colisión
+    const adjustedLabels = this.resolveCollisions(labelInfos, dataLabels.fontSize);
+    
+    // Renderizar labels con posiciones ajustadas
+    adjustedLabels.forEach((labelInfo) => {
+      const textGroup = g.append("g")
+        .attr("transform", `translate(${labelInfo.textX}, ${labelInfo.textY})`);
+
+      this.renderAdaptiveText(
+        textGroup, 
+        labelInfo.labelText, 
+        labelInfo.textAnchor, 
+        dataLabels, 
+        labelInfo.helpers, 
+        labelInfo.lineLength, 
+        labelInfo.absoluteTextX, 
+        containerWidth, 
+        margin
+      );
+    });
+  }
+
+  private resolveCollisions(labelInfos: any[], fontSize: number): any[] {
+    const lineHeight = fontSize * 1.2;
+    const minSeparation = lineHeight * 0.5; // Separación mínima entre labels
+    
+    // Separar labels por cuadrantes para evitar conflictos cross-quadrant
+    const quadrants = {
+      topRight: [] as any[],
+      bottomRight: [] as any[],
+      bottomLeft: [] as any[],
+      topLeft: [] as any[]
+    };
+    
+    labelInfos.forEach(label => {
+      const quadrant = this.getQuadrant(label.helpers.mid);
+      quadrants[quadrant].push(label);
+    });
+    
+    // Resolver colisiones dentro de cada cuadrante
+    Object.keys(quadrants).forEach(quadrantKey => {
+      const quadrantLabels = quadrants[quadrantKey as keyof typeof quadrants];
+      if (quadrantLabels.length > 1) {
+        this.resolveQuadrantCollisions(quadrantLabels, lineHeight, minSeparation);
+      }
+    });
+    
+    return labelInfos;
+  }
+
+  private getQuadrant(angle: number): 'topRight' | 'bottomRight' | 'bottomLeft' | 'topLeft' {
+    const normalizedAngle = angle % (2 * Math.PI);
+    if (normalizedAngle >= 0 && normalizedAngle < Math.PI / 2) return 'topRight';
+    if (normalizedAngle >= Math.PI / 2 && normalizedAngle < Math.PI) return 'bottomRight';
+    if (normalizedAngle >= Math.PI && normalizedAngle < 3 * Math.PI / 2) return 'bottomLeft';
+    return 'topLeft';
+  }
+
+  private resolveQuadrantCollisions(labels: any[], lineHeight: number, minSeparation: number): void {
+    // Ordenar labels por posición Y original
+    labels.sort((a, b) => a.originalY - b.originalY);
+    
+    for (let i = 0; i < labels.length; i++) {
+      const currentLabel = labels[i];
+      const currentHeight = currentLabel.lineCount * lineHeight;
+      
+      // Verificar colisiones con labels anteriores
+      for (let j = 0; j < i; j++) {
+        const previousLabel = labels[j];
+        const previousHeight = previousLabel.lineCount * lineHeight;
+        
+        // Calcular límites verticales
+        const currentTop = currentLabel.textY - currentHeight / 2;
+        const currentBottom = currentLabel.textY + currentHeight / 2;
+        const previousTop = previousLabel.textY - previousHeight / 2;
+        const previousBottom = previousLabel.textY + previousHeight / 2;
+        
+        // Detectar colisión
+        if (currentTop < previousBottom + minSeparation) {
+          // Hay colisión, ajustar posición
+          const newY = previousBottom + minSeparation + currentHeight / 2;
+          currentLabel.textY = newY;
+        }
+      }
+    }
   }
 
   private renderAdaptiveText(textGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
