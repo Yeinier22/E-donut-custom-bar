@@ -62,6 +62,23 @@ interface RenderConfig {
   height: number;
   wrap: TextWrapMode;
   spacing: SpacingConfig;
+  dataLabels: DataLabelsConfig;
+}
+
+interface DataLabelsConfig {
+  show: boolean;
+  labelPlacement: string;
+  placementMode: string;
+  color: string;
+  fontFamily: string;
+  fontSize: number;
+  fontStyle: string;
+  fontWeight: string;
+  opacity: number;
+  showBlankAs: string;
+  displayUnit: string;
+  valueDecimals: number;
+  valueType: string;
 }
 
 // 🎨 Clase DonutRenderer (copiada exactamente del ejemplo)
@@ -73,7 +90,7 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string): void {
-    const { radius, lineLengthConfig, width, height, wrap, spacing } = config;
+    const { radius, lineLengthConfig, width, height, wrap, spacing, dataLabels } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
@@ -90,20 +107,25 @@ class DonutRenderer {
       .append("g")
       .attr("transform", `translate(${width / 2}, ${centerY})`);
 
-    // Configurar generadores D3 con spacing personalizado (como en la versión ECharts)
+    // Configurar generadores D3 exactamente como en el ejemplo
     const pie = d3.pie<any>().value((d: DonutDataPoint) => d.value);
-    const innerRadius = radius * (spacing.innerRadiusPercent / 100);
-    const outerRadius = radius * ((spacing.innerRadiusPercent + spacing.ringWidthPercent) / 100);
-    
     const arc = d3.arc<d3.PieArcDatum<DonutDataPoint>>()
-      .innerRadius(innerRadius)
-      .outerRadius(outerRadius);
+      .innerRadius(radius * DONUT_CONFIG.INNER_RADIUS_RATIO)
+      .outerRadius(radius * DONUT_CONFIG.OUTER_RADIUS_RATIO);
     const color = d3.scaleOrdinal(d3.schemeSet2);
 
     // Renderizar componentes
     this.renderDonut(g, viewModel, pie, arc, color, onSliceClick);
-    this.renderLines(g, viewModel, pie, outerRadius, lineLengthConfig);
-    this.renderLabels(g, viewModel, pie, outerRadius, lineLengthConfig, wrap);
+    
+    // Solo renderizar líneas y labels si dataLabels están habilitados y en posición outside
+    const isOutside = dataLabels.labelPlacement === "outside";
+    if (dataLabels.show && isOutside) {
+      this.renderLines(g, viewModel, pie, radius, lineLengthConfig);
+      this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, wrap, dataLabels);
+    } else if (dataLabels.show && !isOutside) {
+      // Renderizar labels inside sin líneas
+      this.renderLabelsInside(g, viewModel, pie, dataLabels);
+    }
   }
 
   private renderNavigationButtons(width: number, height: number, onBackClick?: () => void, drillCategory?: string): void {
@@ -146,14 +168,14 @@ class DonutRenderer {
       .text("No data available");
   }
 
-  private getGeometryHelpers(d: d3.PieArcDatum<any>, outerRadius: number): GeometryHelpers {
+  private getGeometryHelpers(d: d3.PieArcDatum<any>, radius: number): GeometryHelpers {
     const mid = (d.startAngle + d.endAngle) / 2;
     const direction = mid < Math.PI ? 1 : -1;
     return {
       mid,
       direction,
-      outerRadius: outerRadius,
-      midRadius: outerRadius * 1.1  // Las líneas salen desde justo fuera del borde exterior
+      outerRadius: radius * DONUT_CONFIG.OUTER_RADIUS_RATIO,
+      midRadius: radius * DONUT_CONFIG.LINE_START_RATIO
     };
   }
 
@@ -241,23 +263,331 @@ class DonutRenderer {
                       pie: d3.Pie<any, DonutDataPoint>, 
                       radius: number, 
                       lineLengthConfig: LineLengthConfig,
-                      wrap: TextWrapMode): void {
-    const pieData = pie(viewModel);
+                      wrap: TextWrapMode,
+                      dataLabels: DataLabelsConfig): void {
+    if (wrap === "wrap") {
+      this.renderWrappedLabels(g, pie(viewModel), radius, lineLengthConfig, dataLabels);
+    } else {
+      this.renderSingleLabels(g, pie(viewModel), radius, lineLengthConfig, dataLabels);
+    }
+  }
+
+  private renderSingleLabels(g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                            pieData: d3.PieArcDatum<DonutDataPoint>[],
+                            radius: number,
+                            lineLengthConfig: LineLengthConfig,
+                            dataLabels: DataLabelsConfig): void {
     pieData.forEach((d) => {
       const helpers = this.getGeometryHelpers(d, radius);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
       const [textX, textY] = this.calculateTextPosition(helpers, lineLength);
       
-      const fullText = `${d.data.category}: ${d.data.value} (${d.data.percentage.toFixed(1)}%)`;
+      const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
       const textAnchor = this.getTextAnchor(d, radius, "auto");
       
       g.append("text")
-        .text(fullText)
+        .text(labelText)
         .attr("transform", `translate(${textX}, ${textY})`)
         .style("text-anchor", textAnchor)
-        .style("font-size", "12px")
-        .style("fill", "#444");
+        .style("font-family", dataLabels.fontFamily)
+        .style("font-size", `${dataLabels.fontSize}px`)
+        .style("font-style", dataLabels.fontStyle)
+        .style("font-weight", dataLabels.fontWeight)
+        .style("fill", dataLabels.color)
+        .style("opacity", dataLabels.opacity);
     });
+  }
+
+  private renderWrappedLabels(g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                             pieData: d3.PieArcDatum<DonutDataPoint>[],
+                             radius: number,
+                             lineLengthConfig: LineLengthConfig,
+                             dataLabels: DataLabelsConfig): void {
+    const containerWidth = parseInt(this.svg.attr("width")) || 400;
+    const centerX = containerWidth / 2;
+    const margin = -5;
+    
+    pieData.forEach((d) => {
+      const helpers = this.getGeometryHelpers(d, radius);
+      const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength);
+      
+      const textGroup = g.append("g")
+        .attr("transform", `translate(${textX}, ${textY})`);
+
+      // Usar los datos formateados
+      const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
+      const textAnchor = this.getTextAnchor(d, radius, "auto");
+      const absoluteTextX = centerX + textX;
+      
+      // Verificar si el texto completo cabe
+      const fullTextWidth = this.estimateTextWidth(labelText, dataLabels.fontSize);
+      
+      let willOverflow = false;
+      if (helpers.direction < 0) {
+        willOverflow = (absoluteTextX - fullTextWidth - margin) < 0;
+      } else {
+        willOverflow = (absoluteTextX + fullTextWidth + margin) > containerWidth;
+      }
+      
+      if (willOverflow && labelText.includes(' ')) {
+        // Dividir el texto si no cabe y tiene espacios
+        const maxWidth = lineLength * 2;
+        const lines = this.splitTextIntelligent(labelText, maxWidth, dataLabels.fontSize);
+        
+        lines.forEach((line, index) => {
+          textGroup.append("text")
+            .text(line)
+            .style("text-anchor", textAnchor)
+            .style("font-family", dataLabels.fontFamily)
+            .style("font-size", `${dataLabels.fontSize}px`)
+            .style("font-style", dataLabels.fontStyle)
+            .style("font-weight", dataLabels.fontWeight)
+            .style("fill", dataLabels.color)
+            .style("opacity", dataLabels.opacity)
+            .attr("dy", `${-0.3 + (index * 1.2)}em`);
+        });
+      } else {
+        // Texto completo en una línea
+        textGroup.append("text")
+          .text(labelText)
+          .style("text-anchor", textAnchor)
+          .style("font-family", dataLabels.fontFamily)
+          .style("font-size", `${dataLabels.fontSize}px`)
+          .style("font-style", dataLabels.fontStyle)
+          .style("font-weight", dataLabels.fontWeight)
+          .style("fill", dataLabels.color)
+          .style("opacity", dataLabels.opacity);
+      }
+    });
+  }
+
+  private renderWrappedText(g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                           text: string, 
+                           x: number, 
+                           y: number, 
+                           textAnchor: string, 
+                           dataLabels: DataLabelsConfig,
+                           radius: number): void {
+    // Usar el sistema sofisticado del ejemplo con detección de overflow
+    const containerWidth = parseInt(this.svg.attr("width")) || 800;
+    const centerX = containerWidth / 2;
+    const margin = 5;
+    const absoluteTextX = centerX + x;
+    
+    // Determinar dirección (izquierda o derecha del centro)
+    const direction = x >= 0 ? 1 : -1;
+    
+    // Estimar ancho del texto completo
+    const fullTextWidth = this.estimateTextWidth(text, dataLabels.fontSize);
+    
+    // Verificar si habrá overflow
+    let willOverflow = false;
+    if (direction < 0) {
+      willOverflow = (absoluteTextX - fullTextWidth - margin) < 0;
+    } else {
+      willOverflow = (absoluteTextX + fullTextWidth + margin) > containerWidth;
+    }
+    
+    // Solo hacer wrap si hay overflow Y el texto tiene espacios
+    let lines: string[];
+    if (willOverflow && text.includes(' ')) {
+      const maxWidth = Math.abs(x) * 1.8; // Ancho máximo basado en distancia del centro
+      lines = this.splitTextIntelligent(text, maxWidth, dataLabels.fontSize);
+    } else {
+      lines = [text]; // Mantener en una línea
+    }
+    
+    // Render cada línea
+    const lineHeight = dataLabels.fontSize * 1.2;
+    const startY = y - ((lines.length - 1) * lineHeight) / 2;
+    
+    lines.forEach((line, index) => {
+      g.append("text")
+        .text(line)
+        .attr("transform", `translate(${x}, ${startY + index * lineHeight})`)
+        .style("text-anchor", textAnchor)
+        .style("font-family", dataLabels.fontFamily)
+        .style("font-size", `${dataLabels.fontSize}px`)
+        .style("font-style", dataLabels.fontStyle)
+        .style("font-weight", dataLabels.fontWeight)
+        .style("fill", dataLabels.color)
+        .style("opacity", dataLabels.opacity);
+    });
+  }
+
+  private renderLabelsInside(g: d3.Selection<SVGGElement, unknown, null, undefined>, 
+                           viewModel: DonutDataPoint[], 
+                           pie: d3.Pie<any, DonutDataPoint>,
+                           dataLabels: DataLabelsConfig): void {
+    const pieData = pie(viewModel);
+    pieData.forEach((d) => {
+      // Calculate centroid for inside labels
+      const angle = (d.startAngle + d.endAngle) / 2;
+      const radius = 60; // Position inside the donut
+      const centroid = [
+        Math.cos(angle - Math.PI / 2) * radius,
+        Math.sin(angle - Math.PI / 2) * radius
+      ];
+      
+      const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
+      
+      // Apply placement mode for inside labels too
+      if (dataLabels.placementMode === "wrap") {
+        this.renderWrappedTextInside(g, labelText, centroid[0], centroid[1], dataLabels, radius);
+      } else {
+        // Align mode - single line text
+        g.append("text")
+          .text(labelText)
+          .attr("transform", `translate(${centroid[0]}, ${centroid[1]})`)
+          .style("text-anchor", "middle")
+          .style("font-family", dataLabels.fontFamily)
+          .style("font-size", `${dataLabels.fontSize}px`)
+          .style("font-style", dataLabels.fontStyle)
+          .style("font-weight", dataLabels.fontWeight)
+          .style("fill", dataLabels.color)
+          .style("opacity", dataLabels.opacity);
+      }
+    });
+  }
+
+  private estimateTextWidth(text: string, fontSize: number = 12): number {
+    // Estimación más precisa basada en caracteres promedio
+    return text.length * fontSize * 0.6;
+  }
+
+  private splitTextIntelligent(text: string, maxWidth: number, fontSize: number = 12): string[] {
+    // Solo dividir si tiene espacios (múltiples palabras)
+    if (!text.includes(' ')) {
+      return [text]; // Una sola palabra, no dividir
+    }
+    
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = this.estimateTextWidth(testLine, fontSize);
+      
+      if (testWidth <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          // Si una sola palabra es muy larga, la agregamos completa
+          lines.push(word);
+        }
+      }
+    }
+    
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    return lines.length > 0 ? lines : [text];
+  }
+
+  private renderWrappedTextInside(g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                 text: string, 
+                                 x: number, 
+                                 y: number, 
+                                 dataLabels: DataLabelsConfig,
+                                 radius: number): void {
+    // Para labels internos, usar ancho máximo más conservador
+    const maxWidth = Math.max(60, Math.floor(radius * 0.8));
+    
+    // Solo hacer wrap si el texto tiene espacios y es necesario
+    let lines: string[];
+    if (text.includes(' ') && this.estimateTextWidth(text, dataLabels.fontSize) > maxWidth) {
+      lines = this.splitTextIntelligent(text, maxWidth, dataLabels.fontSize);
+    } else {
+      lines = [text];
+    }
+    
+    // Render cada línea centrada
+    const lineHeight = dataLabels.fontSize * 1.1;
+    const startY = y - ((lines.length - 1) * lineHeight) / 2;
+    
+    lines.forEach((line, index) => {
+      g.append("text")
+        .text(line)
+        .attr("transform", `translate(${x}, ${startY + index * lineHeight})`)
+        .style("text-anchor", "middle")
+        .style("font-family", dataLabels.fontFamily)
+        .style("font-size", `${dataLabels.fontSize}px`)
+        .style("font-style", dataLabels.fontStyle)
+        .style("font-weight", dataLabels.fontWeight)
+        .style("fill", dataLabels.color)
+        .style("opacity", dataLabels.opacity);
+    });
+  }
+
+  private formatLabelText(dataPoint: DonutDataPoint, showBlankAs: string, dataLabels: DataLabelsConfig): string {
+    const category = dataPoint.category === "(Blank)" && showBlankAs ? showBlankAs : dataPoint.category;
+    const formattedValue = this.formatValue(dataPoint.value, dataLabels);
+    const formattedPercentage = dataPoint.percentage.toFixed(dataLabels.valueDecimals);
+    return `${category}: ${formattedValue} (${formattedPercentage}%)`;
+  }
+
+  private formatValue(value: number, dataLabels: DataLabelsConfig): string {
+    let formattedValue = value;
+    let suffix = "";
+
+    // Apply display units
+    switch (dataLabels.displayUnit) {
+      case "thousand":
+        formattedValue = value / 1000;
+        suffix = "K";
+        break;
+      case "million":
+        formattedValue = value / 1000000;
+        suffix = "M";
+        break;
+      case "billion":
+        formattedValue = value / 1000000000;
+        suffix = "B";
+        break;
+      case "auto":
+        if (Math.abs(value) >= 1000000000) {
+          formattedValue = value / 1000000000;
+          suffix = "B";
+        } else if (Math.abs(value) >= 1000000) {
+          formattedValue = value / 1000000;
+          suffix = "M";
+        } else if (Math.abs(value) >= 1000) {
+          formattedValue = value / 1000;
+          suffix = "K";
+        }
+        break;
+      case "none":
+      default:
+        formattedValue = value;
+        break;
+    }
+
+    // Apply decimal places
+    const decimals = dataLabels.valueDecimals;
+    let valueString = formattedValue.toFixed(decimals);
+
+    // Apply value type formatting
+    switch (dataLabels.valueType) {
+      case "currency":
+        valueString = "$" + valueString;
+        break;
+      case "percent":
+        valueString = valueString + "%";
+        break;
+      case "number":
+      case "auto":
+      default:
+        // No additional formatting
+        break;
+    }
+
+    return valueString + suffix;
   }
 
   private getLineLengthForCategory(category: string, config: LineLengthConfig): number {
@@ -335,13 +665,16 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const radius = Math.min(options.viewport.width, options.viewport.height) / 2 - DONUT_CONFIG.MARGIN;
     const lineLengthConfig = this.getLineLengthConfig(dataView, viewModel);
     
+    const dataLabelsConfig = this.getDataLabelsConfig(dataView, this.isDrilled);
+    
     const config: RenderConfig = {
       radius,
       lineLengthConfig,
       width: options.viewport.width,
       height: options.viewport.height,
       wrap: DONUT_CONFIG.DEFAULT_WRAP,
-      spacing: spacingConfig
+      spacing: spacingConfig,
+      dataLabels: dataLabelsConfig
     };
 
     // Save base state if not drilled (like ECharts version)
@@ -609,6 +942,29 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     return defaultValue;
   }
 
+  private getDataLabelsConfig(dataView: powerbi.DataView, isDrilled: boolean): DataLabelsConfig {
+    // Use FormattingSettings values - main dataLabelsCard has all the UI properties
+    const dataLabelsCard = this.formattingSettings.dataLabelsCard;
+    const drillCard = this.formattingSettings.dataLabelsDrillCard;
+    
+    return {
+      show: dataLabelsCard.show.value,
+      labelPlacement: String(dataLabelsCard.labelPlacement.value.value),
+      placementMode: String(dataLabelsCard.placementMode.value.value),
+      color: dataLabelsCard.color.value.value,
+      fontFamily: dataLabelsCard.fontFamily.value,
+      fontSize: dataLabelsCard.fontSize.value,
+      fontStyle: "normal",
+      fontWeight: "normal",  
+      opacity: 1,
+      showBlankAs: "",
+      // Drill-specific formatting (if in drill mode, use drill values for number formatting)
+      displayUnit: String(isDrilled ? drillCard.displayUnit.value.value : dataLabelsCard.displayUnit.value.value),
+      valueDecimals: isDrilled ? drillCard.valueDecimals.value : dataLabelsCard.valueDecimals.value,
+      valueType: String(isDrilled ? drillCard.valueType.value.value : dataLabelsCard.valueType.value.value)
+    };
+  }
+
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     // Actualizar visibilidad de slices según el modo
     const isIndividualMode = this.formattingSettings.labelTuningCard.lineLengthMode.value.value === "individual";
@@ -632,9 +988,19 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     
     individualSlices.forEach((slice, index) => {
       slice.visible = isIndividualMode;
-      // TODO: Actualizar displayName con nombre de categoría real cuando esté disponible
       slice.displayName = `Category ${index} Line Length`;
     });
+    
+    // Control data labels visibility based on show toggle
+    const dataLabelsEnabled = this.formattingSettings.dataLabelsCard.show.value;
+    this.formattingSettings.dataLabelsCard.labelPlacement.visible = dataLabelsEnabled;
+    this.formattingSettings.dataLabelsCard.placementMode.visible = dataLabelsEnabled;
+    this.formattingSettings.dataLabelsCard.fontFamily.visible = dataLabelsEnabled;
+    this.formattingSettings.dataLabelsCard.fontSize.visible = dataLabelsEnabled;
+    this.formattingSettings.dataLabelsCard.color.visible = dataLabelsEnabled;
+    this.formattingSettings.dataLabelsCard.displayUnit.visible = dataLabelsEnabled;
+    this.formattingSettings.dataLabelsCard.valueDecimals.visible = dataLabelsEnabled;
+    this.formattingSettings.dataLabelsCard.valueType.visible = dataLabelsEnabled;
     
     return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
   }
