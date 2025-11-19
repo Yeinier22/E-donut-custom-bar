@@ -338,6 +338,17 @@ class DonutRenderer {
     // Aplicar separación automática anti-colisión
     const adjustedLabels = this.resolveCollisions(labelInfos, dataLabels.fontSize);
     
+    // Renderizar líneas que se ajustan automáticamente a las posiciones de los labels
+    adjustedLabels.forEach((labelInfo) => {
+      if (labelInfo.textY !== labelInfo.originalY) {
+        // Label fue reposicionado - renderizar línea ajustada que sigue al label
+        this.renderSmartAdjustedLine(g, labelInfo);
+      } else {
+        // Label en posición original - línea normal
+        this.renderNormalLine(g, labelInfo);
+      }
+    });
+    
     // Renderizar labels con posiciones ajustadas
     adjustedLabels.forEach((labelInfo) => {
       const textGroup = g.append("g")
@@ -815,6 +826,62 @@ class DonutRenderer {
     const mid = (d.startAngle + d.endAngle) / 2;
     return mid < Math.PI ? "start" : "end";
   }
+
+  // Renderizar línea inteligente que se ajusta automáticamente al label
+  private renderSmartAdjustedLine(g: d3.Selection<SVGGElement, unknown, null, undefined>, labelInfo: any): void {
+    const helpers = labelInfo.helpers;
+    const lineLength = labelInfo.lineLength;
+    
+    // Punto inicial: desde el borde del donut
+    const startPoint = [
+      Math.cos(helpers.mid - Math.PI / 2) * helpers.outerRadius,
+      Math.sin(helpers.mid - Math.PI / 2) * helpers.outerRadius
+    ];
+    
+    // Punto intermedio: extensión radial corta
+    const radialExtension = helpers.outerRadius + 15;
+    const midPoint = [
+      Math.cos(helpers.mid - Math.PI / 2) * radialExtension,
+      Math.sin(helpers.mid - Math.PI / 2) * radialExtension
+    ];
+    
+    // Punto final: conectar automáticamente al inicio del label reposicionado
+    const isRightSide = helpers.direction > 0;
+    const labelStartX = isRightSide ? labelInfo.textX - 5 : labelInfo.textX + 5; // Pequeño margen
+    const finalPoint = [
+      labelStartX,
+      labelInfo.textY // Y ajustada automáticamente por el sistema de colisiones
+    ];
+
+    // Segmento 1: Línea radial desde el donut
+    g.append("line")
+      .attr("x1", startPoint[0])
+      .attr("y1", startPoint[1])
+      .attr("x2", midPoint[0])
+      .attr("y2", midPoint[1])
+      .attr("stroke", "#888")
+      .attr("stroke-width", 1);
+    
+    // Segmento 2: Línea horizontal que busca automáticamente el inicio del label
+    g.append("line")
+      .attr("x1", midPoint[0])
+      .attr("y1", midPoint[1])
+      .attr("x2", finalPoint[0])
+      .attr("y2", finalPoint[1])
+      .attr("stroke", "#888")
+      .attr("stroke-width", 1);
+  }
+
+  // Renderizar línea normal para labels no reposicionados
+  private renderNormalLine(g: d3.Selection<SVGGElement, unknown, null, undefined>, labelInfo: any): void {
+    const points = this.calculateLinePoints(labelInfo.helpers, labelInfo.lineLength);
+    
+    g.append("polyline")
+      .attr("stroke", "#888")
+      .attr("stroke-width", 1)
+      .attr("fill", "none")
+      .attr("points", points.map((p) => p.join(",")).join(" "));
+  }
 }
 
 // 🎨 Clase Visual Principal
@@ -1177,6 +1244,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       valueType: String(isDrilled ? drillCard.valueType.value.value : dataLabelsCard.valueType.value.value)
     };
   }
+
+
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     // Actualizar visibilidad de slices según el modo
