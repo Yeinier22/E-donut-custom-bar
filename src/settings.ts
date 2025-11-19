@@ -68,6 +68,12 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
     value: 2,
   });
 
+  percentDecimals = new formattingSettings.NumUpDown({
+    name: "percentDecimals",
+    displayName: "Percent decimal places",
+    value: 1,
+  });
+
   valueType = new formattingSettings.ItemDropdown({
     name: "valueType",
     displayName: "Value type",
@@ -97,6 +103,7 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
     this.color,
     this.displayUnit,
     this.valueDecimals,
+    this.percentDecimals,
     this.valueType,
   ];
 }
@@ -124,6 +131,12 @@ class DataLabelsDrillCardSettings extends FormattingSettingsCard {
     value: 2,
   });
 
+  percentDecimals = new formattingSettings.NumUpDown({
+    name: "percentDecimals",
+    displayName: "Percent decimal places",
+    value: 1,
+  });
+
   valueType = new formattingSettings.ItemDropdown({
     name: "valueType",
     displayName: "Value type",
@@ -141,6 +154,7 @@ class DataLabelsDrillCardSettings extends FormattingSettingsCard {
   slices: Array<FormattingSettingsSlice> = [
     this.displayUnit,
     this.valueDecimals,
+    this.percentDecimals,
     this.valueType,
   ];
 }

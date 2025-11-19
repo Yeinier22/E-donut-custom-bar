@@ -323,6 +323,12 @@
             "numeric": true
           }
         },
+        "percentDecimals": {
+          "displayName": "Percent decimal places",
+          "type": {
+            "numeric": true
+          }
+        },
         "valueType": {
           "displayName": "Value type",
           "type": {
@@ -380,6 +386,12 @@
         },
         "valueDecimals": {
           "displayName": "Value decimal places",
+          "type": {
+            "numeric": true
+          }
+        },
+        "percentDecimals": {
+          "displayName": "Percent decimal places",
           "type": {
             "numeric": true
           }

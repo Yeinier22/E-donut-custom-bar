@@ -84,6 +84,7 @@ interface DataLabelsConfig {
   showBlankAs: string;
   displayUnit: string;
   valueDecimals: number;
+  percentDecimals: number;
   valueType: string;
   textSpacing: number;
 }
@@ -779,7 +780,7 @@ class DonutRenderer {
   private formatLabelText(dataPoint: DonutDataPoint, showBlankAs: string, dataLabels: DataLabelsConfig): string {
     const category = dataPoint.category === "(Blank)" && showBlankAs ? showBlankAs : dataPoint.category;
     const formattedValue = this.formatValue(dataPoint.value, dataLabels);
-    const formattedPercentage = dataPoint.percentage.toFixed(dataLabels.valueDecimals);
+    const formattedPercentage = dataPoint.percentage.toFixed(dataLabels.percentDecimals);
     return `${category}: ${formattedValue} (${formattedPercentage}%)`;
   }
 
@@ -1314,6 +1315,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       // Drill-specific formatting (if in drill mode, use drill values for number formatting)
       displayUnit: String(isDrilled ? drillCard.displayUnit.value.value : dataLabelsCard.displayUnit.value.value),
       valueDecimals: isDrilled ? drillCard.valueDecimals.value : dataLabelsCard.valueDecimals.value,
+      percentDecimals: isDrilled ? drillCard.percentDecimals.value : dataLabelsCard.percentDecimals.value,
       valueType: String(isDrilled ? drillCard.valueType.value.value : dataLabelsCard.valueType.value.value),
       textSpacing: this.formattingSettings.labelTuningCard.textSpacing.value
     };
