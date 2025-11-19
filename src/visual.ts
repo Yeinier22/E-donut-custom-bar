@@ -353,9 +353,8 @@ class DonutRenderer {
       ? absoluteTextX - margin
       : containerWidth - absoluteTextX - margin;
     
-    // Probar diferentes layouts según el espacio disponible
-    const layouts = this.generateLayoutOptions(parts, dataLabels.fontSize);
-    const bestLayout = this.selectBestLayout(layouts, availableWidth);
+    // Seleccionar el mejor layout adaptativo según el espacio disponible
+    const bestLayout = this.selectBestLayout(parts, dataLabels.fontSize, availableWidth);
     
     // Renderizar el layout seleccionado
     bestLayout.lines.forEach((line, index) => {
@@ -436,15 +435,57 @@ class DonutRenderer {
     return layouts;
   }
 
-  private selectBestLayout(layouts: any[], availableWidth: number) {
+  private generateAdaptiveLayoutOptions(parts: { category: string, value: string, percentage: string }, fontSize: number, maxWidth: number) {
+    const adaptiveLayouts = [];
+    
+    // Generar layouts básicos primero
+    const basicLayouts = this.generateLayoutOptions(parts, fontSize);
+    
+    // Para cada layout básico, crear versiones con wrap interno si es necesario
+    basicLayouts.forEach(layout => {
+      const adaptedLayout = {
+        lines: [] as any[],
+        width: 0
+      };
+      
+      layout.lines.forEach(line => {
+        const lineWidth = this.estimateTextWidth(line.text, fontSize);
+        
+        if (lineWidth > maxWidth && line.text.includes(' ')) {
+          // Esta línea necesita wrap interno
+          const wrappedLines = this.splitTextIntelligent(line.text, maxWidth, fontSize);
+          wrappedLines.forEach((wrappedText, index) => {
+            adaptedLayout.lines.push({
+              text: wrappedText,
+              isBold: line.isBold && index === 0 // Solo la primera línea mantiene el bold
+            });
+          });
+          adaptedLayout.width = Math.max(adaptedLayout.width, maxWidth);
+        } else {
+          // Esta línea cabe completa
+          adaptedLayout.lines.push(line);
+          adaptedLayout.width = Math.max(adaptedLayout.width, lineWidth);
+        }
+      });
+      
+      adaptiveLayouts.push(adaptedLayout);
+    });
+    
+    return adaptiveLayouts;
+  }
+
+  private selectBestLayout(parts: { category: string, value: string, percentage: string }, fontSize: number, availableWidth: number) {
+    // Generar layouts adaptativos que incluyen wrap interno
+    const adaptiveLayouts = this.generateAdaptiveLayoutOptions(parts, fontSize, availableWidth);
+    
     // Seleccionar el layout más compacto que quepa en el espacio disponible
-    for (const layout of layouts) {
+    for (const layout of adaptiveLayouts) {
       if (layout.width <= availableWidth) {
         return layout;
       }
     }
-    // Si ninguno cabe, usar el último (más dividido)
-    return layouts[layouts.length - 1];
+    // Si ninguno cabe, usar el último (más dividido y con wrap interno)
+    return adaptiveLayouts[adaptiveLayouts.length - 1];
   }
 
   private renderWrappedText(g: d3.Selection<SVGGElement, unknown, null, undefined>,
