@@ -980,8 +980,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     // Configurar renderizado con spacing settings
     const spacingConfig = this.getSpacingConfig(dataView);
     const radius = Math.min(options.viewport.width, options.viewport.height) / 2 - DONUT_CONFIG.MARGIN;
-    const lineLengthConfig = this.getLineLengthConfig(dataView, viewModel);
-    const verticalPositionConfig = this.getVerticalPositionConfig(dataView, viewModel);
+    const lineLengthConfig = this.getLineLengthConfig(dataView, viewModel, this.isDrilled);
+    const verticalPositionConfig = this.getVerticalPositionConfig(dataView, viewModel, this.isDrilled);
     
     const dataLabelsConfig = this.getDataLabelsConfig(dataView, this.isDrilled);
     
@@ -1193,14 +1193,14 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     return dataPoints;
   }
 
-  private getLineLengthConfig(dataView: powerbi.DataView, viewModel: DonutDataPoint[]): LineLengthConfig {
-    const mode = this.getLineLengthMode(dataView);
-    const globalLength = this.getGlobalLineLength(dataView);
+  private getLineLengthConfig(dataView: powerbi.DataView, viewModel: DonutDataPoint[], isDrilled: boolean): LineLengthConfig {
+    const mode = this.getLineLengthMode(dataView, isDrilled);
+    const globalLength = this.getGlobalLineLength(dataView, isDrilled);
     const categoryLengths: Record<string, number> = {};
 
     if (mode === "individual") {
       viewModel.forEach((d, index) => {
-        categoryLengths[d.category] = this.getCategoryLineLength(dataView, index);
+        categoryLengths[d.category] = this.getCategoryLineLength(dataView, index, isDrilled);
       });
     }
 
@@ -1211,13 +1211,13 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     };
   }
 
-  private getVerticalPositionConfig(dataView: powerbi.DataView, viewModel: DonutDataPoint[]): VerticalPositionConfig {
-    const mode = this.getVerticalPositionMode(dataView);
+  private getVerticalPositionConfig(dataView: powerbi.DataView, viewModel: DonutDataPoint[], isDrilled: boolean): VerticalPositionConfig {
+    const mode = this.getVerticalPositionMode(dataView, isDrilled);
     const categoryOffsets: Record<string, number> = {};
 
     if (mode === "individual") {
       viewModel.forEach((d, index) => {
-        categoryOffsets[d.category] = this.getCategoryVerticalOffset(dataView, index);
+        categoryOffsets[d.category] = this.getCategoryVerticalOffset(dataView, index, isDrilled);
       });
     }
 
@@ -1227,50 +1227,44 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     };
   }
 
-  private getVerticalPositionMode(dataView: powerbi.DataView): "auto" | "individual" {
-    const objects = dataView?.metadata?.objects;
-    if (objects?.labelTuning?.verticalPositionMode) {
-      const mode = objects.labelTuning.verticalPositionMode as string;
-      return (mode === "individual" ? "individual" : "auto");
-    }
-    return "auto";
+  private getVerticalPositionMode(dataView: powerbi.DataView, isDrilled: boolean): "auto" | "individual" {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const mode = String(tuningCard.verticalPositionMode.value.value);
+    return (mode === "individual" ? "individual" : "auto");
   }
 
-  private getCategoryVerticalOffset(dataView: powerbi.DataView, index: number): number {
-    const objects = dataView?.metadata?.objects;
-    const propertyName = `verticalOffset_${index}`;
-    if (objects?.labelTuning?.[propertyName]) {
-      const value = objects.labelTuning[propertyName] as number;
+  private getCategoryVerticalOffset(dataView: powerbi.DataView, index: number, isDrilled: boolean): number {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const propertyName = `verticalOffset_${index}` as keyof typeof tuningCard;
+    const control = tuningCard[propertyName] as any;
+    if (control && control.value !== undefined) {
+      const value = control.value;
       return Math.max(-100, Math.min(100, value)); // Limitar entre -100 y +100
     }
     return 0; // Sin offset por defecto
   }
 
-  private getLineLengthMode(dataView: powerbi.DataView): LineLengthMode {
-    const objects = dataView?.metadata?.objects;
-    if (objects?.labelTuning?.lineLengthMode) {
-      const mode = objects.labelTuning.lineLengthMode as string;
-      return (mode === "individual" ? "individual" : "all") as LineLengthMode;
-    }
-    return DONUT_CONFIG.DEFAULT_LINE_MODE;
+  private getLineLengthMode(dataView: powerbi.DataView, isDrilled: boolean): LineLengthMode {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const mode = String(tuningCard.lineLengthMode.value.value);
+    return (mode === "individual" ? "individual" : "all") as LineLengthMode;
   }
 
-  private getGlobalLineLength(dataView: powerbi.DataView): number {
-    const objects = dataView?.metadata?.objects;
-    if (objects?.labelTuning?.lineLength) {
-      const value = objects.labelTuning.lineLength as number;
-      if (typeof value === 'number' && !isNaN(value)) {
-        return Math.max(DONUT_CONFIG.MIN_LINE_LENGTH, Math.min(DONUT_CONFIG.MAX_LINE_LENGTH, value));
-      }
+  private getGlobalLineLength(dataView: powerbi.DataView, isDrilled: boolean): number {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const value = tuningCard.lineLength.value;
+    if (typeof value === 'number' && !isNaN(value)) {
+      return Math.max(DONUT_CONFIG.MIN_LINE_LENGTH, Math.min(DONUT_CONFIG.MAX_LINE_LENGTH, value));
     }
     return DONUT_CONFIG.DEFAULT_LINE_LENGTH;
   }
 
-  private getCategoryLineLength(dataView: powerbi.DataView, categoryIndex: number): number {
-    const propertyName = `lineLength_${categoryIndex}`;
-    const objects = dataView?.metadata?.objects;
-    if (objects?.labelTuning?.[propertyName]) {
-      const value = objects.labelTuning[propertyName] as number;
+  private getCategoryLineLength(dataView: powerbi.DataView, categoryIndex: number, isDrilled: boolean): number {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const propertyName = `lineLength_${categoryIndex}` as keyof typeof tuningCard;
+    const control = tuningCard[propertyName] as any;
+    if (control && control.value !== undefined) {
+      const value = control.value;
       if (typeof value === 'number' && !isNaN(value)) {
         return Math.max(DONUT_CONFIG.MIN_LINE_LENGTH, Math.min(DONUT_CONFIG.MAX_LINE_LENGTH, value));
       }

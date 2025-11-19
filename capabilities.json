@@ -1,4 +1,4 @@
-{
+﻿{
   "dataRoles": [
     {
       "name": "category",
@@ -825,31 +825,76 @@
     },
     "labelTuningDrill": {
       "properties": {
+        "lineLengthMode": {
+          "displayName": "Line Length Mode",
+          "type": {
+            "enumeration": [
+              { "displayName": "All same", "value": "all" },
+              { "displayName": "Individual", "value": "individual" }
+            ]
+          }
+        },
         "lineLength": {
+          "displayName": "Line Length",
           "type": {
             "numeric": true
           }
         },
+        "lineLength_0": { "type": { "numeric": true } },
+        "lineLength_1": { "type": { "numeric": true } },
+        "lineLength_2": { "type": { "numeric": true } },
+        "lineLength_3": { "type": { "numeric": true } },
+        "lineLength_4": { "type": { "numeric": true } },
+        "lineLength_5": { "type": { "numeric": true } },
+        "lineLength_6": { "type": { "numeric": true } },
+        "lineLength_7": { "type": { "numeric": true } },
+        "lineLength_8": { "type": { "numeric": true } },
+        "lineLength_9": { "type": { "numeric": true } },
         "curveTension": {
+          "displayName": "Curve Tension",
           "type": {
             "numeric": true
           }
         },
         "textSpacing": {
+          "displayName": "Text Line Spacing",
           "type": {
             "numeric": true
           }
         },
         "columnOffset": {
+          "displayName": "Label Column Offset (px)",
+          "description": "Move label columns inward (-) or outward (+) from the donut",
           "type": {
             "numeric": true
           }
         },
         "sidePadding": {
+          "displayName": "Side Padding (px)",
+          "description": "Extra left/right padding that pushes labels inward from the edges",
           "type": {
             "numeric": true
           }
-        }
+        },
+        "verticalPositionMode": {
+          "displayName": "Vertical Position Mode",
+          "type": {
+            "enumeration": [
+              { "displayName": "Auto", "value": "auto" },
+              { "displayName": "Individual", "value": "individual" }
+            ]
+          }
+        },
+        "verticalOffset_0": { "type": { "numeric": true } },
+        "verticalOffset_1": { "type": { "numeric": true } },
+        "verticalOffset_2": { "type": { "numeric": true } },
+        "verticalOffset_3": { "type": { "numeric": true } },
+        "verticalOffset_4": { "type": { "numeric": true } },
+        "verticalOffset_5": { "type": { "numeric": true } },
+        "verticalOffset_6": { "type": { "numeric": true } },
+        "verticalOffset_7": { "type": { "numeric": true } },
+        "verticalOffset_8": { "type": { "numeric": true } },
+        "verticalOffset_9": { "type": { "numeric": true } }
       }
     }
   },
