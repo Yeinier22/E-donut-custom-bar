@@ -85,6 +85,7 @@ interface DataLabelsConfig {
   displayUnit: string;
   valueDecimals: number;
   valueType: string;
+  textSpacing: number;
 }
 
 // 🎨 Clase DonutRenderer (copiada exactamente del ejemplo)
@@ -113,11 +114,11 @@ class DonutRenderer {
       .append("g")
       .attr("transform", `translate(${width / 2}, ${centerY})`);
 
-    // Configurar generadores D3 exactamente como en el ejemplo
+    // Configurar generadores D3 usando valores configurables de spacing
     const pie = d3.pie<any>().value((d: DonutDataPoint) => d.value);
     const arc = d3.arc<d3.PieArcDatum<DonutDataPoint>>()
-      .innerRadius(radius * DONUT_CONFIG.INNER_RADIUS_RATIO)
-      .outerRadius(radius * DONUT_CONFIG.OUTER_RADIUS_RATIO);
+      .innerRadius(radius * (spacing.innerRadiusPercent / 100))
+      .outerRadius(radius * ((spacing.innerRadiusPercent + spacing.ringWidthPercent) / 100));
     const color = d3.scaleOrdinal(d3.schemeSet2);
 
     // Renderizar componentes
@@ -126,8 +127,8 @@ class DonutRenderer {
     // Solo renderizar líneas y labels si dataLabels están habilitados y en posición outside
     const isOutside = dataLabels.labelPlacement === "outside";
     if (dataLabels.show && isOutside) {
-      this.renderLines(g, viewModel, pie, radius, lineLengthConfig);
-      this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, verticalPositionConfig, wrap, dataLabels);
+      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, spacing);
+      this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, verticalPositionConfig, wrap, dataLabels, spacing);
     } else if (dataLabels.show && !isOutside) {
       // Renderizar labels inside sin líneas
       this.renderLabelsInside(g, viewModel, pie, dataLabels);
@@ -174,14 +175,15 @@ class DonutRenderer {
       .text("No data available");
   }
 
-  private getGeometryHelpers(d: d3.PieArcDatum<any>, radius: number): GeometryHelpers {
+  private getGeometryHelpers(d: d3.PieArcDatum<any>, radius: number, spacing: SpacingConfig): GeometryHelpers {
     const mid = (d.startAngle + d.endAngle) / 2;
     const direction = mid < Math.PI ? 1 : -1;
+    const outerRadiusRatio = (spacing.innerRadiusPercent + spacing.ringWidthPercent) / 100;
     return {
       mid,
       direction,
-      outerRadius: radius * DONUT_CONFIG.OUTER_RADIUS_RATIO,
-      midRadius: radius * DONUT_CONFIG.LINE_START_RATIO
+      outerRadius: radius * outerRadiusRatio,
+      midRadius: radius * DONUT_CONFIG.LINE_START_RATIO // Este se mantiene para las líneas
     };
   }
 
@@ -249,7 +251,8 @@ class DonutRenderer {
                      viewModel: DonutDataPoint[], 
                      pie: d3.Pie<any, DonutDataPoint>, 
                      radius: number, 
-                     lineLengthConfig: LineLengthConfig): void {
+                     lineLengthConfig: LineLengthConfig,
+                     spacing: SpacingConfig): void {
     g.selectAll("polyline")
       .data(pie(viewModel))
       .enter()
@@ -258,7 +261,7 @@ class DonutRenderer {
       .attr("stroke-width", 1)
       .attr("fill", "none")
       .attr("points", (d: d3.PieArcDatum<any>) => {
-        const helpers = this.getGeometryHelpers(d, radius);
+        const helpers = this.getGeometryHelpers(d, radius, spacing);
         const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
         const points = this.calculateLinePoints(helpers, lineLength);
         return points.map((p) => p.join(",")).join(" ");
@@ -272,11 +275,12 @@ class DonutRenderer {
                       lineLengthConfig: LineLengthConfig,
                       verticalPositionConfig: VerticalPositionConfig,
                       wrap: TextWrapMode,
-                      dataLabels: DataLabelsConfig): void {
+                      dataLabels: DataLabelsConfig,
+                      spacing: SpacingConfig): void {
     if (wrap === "wrap") {
-      this.renderWrappedLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels);
+      this.renderWrappedLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels, spacing);
     } else {
-      this.renderSingleLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels);
+      this.renderSingleLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels, spacing);
     }
   }
 
@@ -285,9 +289,10 @@ class DonutRenderer {
                             radius: number,
                             lineLengthConfig: LineLengthConfig,
                             verticalPositionConfig: VerticalPositionConfig,
-                            dataLabels: DataLabelsConfig): void {
+                            dataLabels: DataLabelsConfig,
+                            spacing: SpacingConfig): void {
     pieData.forEach((d) => {
-      const helpers = this.getGeometryHelpers(d, radius);
+      const helpers = this.getGeometryHelpers(d, radius, spacing);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
       const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig);
       
@@ -312,14 +317,15 @@ class DonutRenderer {
                              radius: number,
                              lineLengthConfig: LineLengthConfig,
                              verticalPositionConfig: VerticalPositionConfig,
-                             dataLabels: DataLabelsConfig): void {
+                             dataLabels: DataLabelsConfig,
+                             spacing: SpacingConfig): void {
     const containerWidth = parseInt(this.svg.attr("width")) || 400;
     const centerX = containerWidth / 2;
     const margin = 10;
     
     // Preparar información de todos los labels para detección de colisiones
     const labelInfos = pieData.map((d) => {
-      const helpers = this.getGeometryHelpers(d, radius);
+      const helpers = this.getGeometryHelpers(d, radius, spacing);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
       const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig);
       const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
@@ -346,7 +352,7 @@ class DonutRenderer {
     });
     
     // Aplicar separación automática anti-colisión
-    const adjustedLabels = this.resolveCollisions(labelInfos, dataLabels.fontSize);
+    const adjustedLabels = this.resolveCollisions(labelInfos, dataLabels.fontSize, dataLabels.textSpacing);
     
     // Renderizar líneas que se ajustan automáticamente a las posiciones de los labels
     adjustedLabels.forEach((labelInfo) => {
@@ -378,8 +384,8 @@ class DonutRenderer {
     });
   }
 
-  private resolveCollisions(labelInfos: any[], fontSize: number): any[] {
-    const lineHeight = fontSize * 1.2;
+  private resolveCollisions(labelInfos: any[], fontSize: number, textSpacing: number): any[] {
+    const lineHeight = fontSize * (textSpacing / 10); // textSpacing viene como valor 0-20, convertir a multiplicador
     const minSeparation = lineHeight * 0.5; // Separación mínima entre labels
     
     // Separar labels por cuadrantes para evitar conflictos cross-quadrant
@@ -475,7 +481,7 @@ class DonutRenderer {
         .style("font-weight", line.isBold ? "bold" : dataLabels.fontWeight)
         .style("fill", dataLabels.color)
         .style("opacity", dataLabels.opacity)
-        .attr("dy", `${-0.3 + (index * 1.2)}em`);
+        .attr("dy", `${-0.3 + (index * (dataLabels.textSpacing / 10))}em`); // Usar textSpacing configurable
     });
   }
 
@@ -633,7 +639,7 @@ class DonutRenderer {
     }
     
     // Render cada línea
-    const lineHeight = dataLabels.fontSize * 1.2;
+    const lineHeight = dataLabels.fontSize * (dataLabels.textSpacing / 10);
     const startY = y - ((lines.length - 1) * lineHeight) / 2;
     
     lines.forEach((line, index) => {
@@ -1259,13 +1265,13 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   }
 
   private getSpacingConfig(dataView: powerbi.DataView): SpacingConfig {
-    const objects = dataView?.metadata?.objects;
-    const spacing = objects?.spacing;
+    // Usar formattingSettings en lugar de dataView.metadata.objects para consistencia
+    const spacingCard = this.formattingSettings.spacingCard;
     
     return {
-      innerRadiusPercent: this.clampValue(spacing?.innerRadiusPercent, 24, 5, 90),
-      ringWidthPercent: this.clampValue(spacing?.ringWidthPercent, 58, 4, 90),
-      centerYPercent: this.clampValue(spacing?.centerYPercent, 58, 0, 100)
+      innerRadiusPercent: spacingCard.innerRadiusPercent.value,
+      ringWidthPercent: spacingCard.ringWidthPercent.value, 
+      centerYPercent: spacingCard.centerYPercent.value
     };
   }
 
@@ -1295,7 +1301,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       // Drill-specific formatting (if in drill mode, use drill values for number formatting)
       displayUnit: String(isDrilled ? drillCard.displayUnit.value.value : dataLabelsCard.displayUnit.value.value),
       valueDecimals: isDrilled ? drillCard.valueDecimals.value : dataLabelsCard.valueDecimals.value,
-      valueType: String(isDrilled ? drillCard.valueType.value.value : dataLabelsCard.valueType.value.value)
+      valueType: String(isDrilled ? drillCard.valueType.value.value : dataLabelsCard.valueType.value.value),
+      textSpacing: this.formattingSettings.labelTuningCard.textSpacing.value
     };
   }
 
