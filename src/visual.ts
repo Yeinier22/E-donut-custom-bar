@@ -305,7 +305,7 @@ class DonutRenderer {
                              dataLabels: DataLabelsConfig): void {
     const containerWidth = parseInt(this.svg.attr("width")) || 400;
     const centerX = containerWidth / 2;
-    const margin = -5;
+    const margin = 10; // Balance entre conservador y funcional
     
     pieData.forEach((d) => {
       const helpers = this.getGeometryHelpers(d, radius);
@@ -330,36 +330,121 @@ class DonutRenderer {
         willOverflow = (absoluteTextX + fullTextWidth + margin) > containerWidth;
       }
       
-      if (willOverflow && labelText.includes(' ')) {
-        // Dividir el texto si no cabe y tiene espacios
-        const maxWidth = lineLength * 2;
-        const lines = this.splitTextIntelligent(labelText, maxWidth, dataLabels.fontSize);
-        
-        lines.forEach((line, index) => {
-          textGroup.append("text")
-            .text(line)
-            .style("text-anchor", textAnchor)
-            .style("font-family", dataLabels.fontFamily)
-            .style("font-size", `${dataLabels.fontSize}px`)
-            .style("font-style", dataLabels.fontStyle)
-            .style("font-weight", dataLabels.fontWeight)
-            .style("fill", dataLabels.color)
-            .style("opacity", dataLabels.opacity)
-            .attr("dy", `${-0.3 + (index * 1.2)}em`);
-        });
-      } else {
-        // Texto completo en una línea
-        textGroup.append("text")
-          .text(labelText)
-          .style("text-anchor", textAnchor)
-          .style("font-family", dataLabels.fontFamily)
-          .style("font-size", `${dataLabels.fontSize}px`)
-          .style("font-style", dataLabels.fontStyle)
-          .style("font-weight", dataLabels.fontWeight)
-          .style("fill", dataLabels.color)
-          .style("opacity", dataLabels.opacity);
-      }
+      // Sistema adaptativo de layout como una web responsive
+      this.renderAdaptiveText(textGroup, labelText, textAnchor, dataLabels, helpers, lineLength, absoluteTextX, containerWidth, margin);
     });
+  }
+
+  private renderAdaptiveText(textGroup: d3.Selection<SVGGElement, unknown, null, undefined>,
+                            labelText: string,
+                            textAnchor: string,
+                            dataLabels: DataLabelsConfig,
+                            helpers: GeometryHelpers,
+                            lineLength: number,
+                            absoluteTextX: number,
+                            containerWidth: number,
+                            margin: number): void {
+    
+    // Parsear el texto para extraer componentes
+    const parts = this.parseLabel(labelText);
+    
+    // Calcular anchos disponibles según la dirección
+    const availableWidth = helpers.direction < 0 
+      ? absoluteTextX - margin
+      : containerWidth - absoluteTextX - margin;
+    
+    // Probar diferentes layouts según el espacio disponible
+    const layouts = this.generateLayoutOptions(parts, dataLabels.fontSize);
+    const bestLayout = this.selectBestLayout(layouts, availableWidth);
+    
+    // Renderizar el layout seleccionado
+    bestLayout.lines.forEach((line, index) => {
+      textGroup.append("text")
+        .text(line.text)
+        .style("text-anchor", textAnchor)
+        .style("font-family", dataLabels.fontFamily)
+        .style("font-size", `${dataLabels.fontSize}px`)
+        .style("font-style", dataLabels.fontStyle)
+        .style("font-weight", line.isBold ? "bold" : dataLabels.fontWeight)
+        .style("fill", dataLabels.color)
+        .style("opacity", dataLabels.opacity)
+        .attr("dy", `${-0.3 + (index * 1.2)}em`);
+    });
+  }
+
+  private parseLabel(labelText: string): { category: string, value: string, percentage: string } {
+    // Parsear texto como "Poor: 1.40M (34.13%)" 
+    const colonIndex = labelText.indexOf(':');
+    const openParenIndex = labelText.lastIndexOf('(');
+    const closeParenIndex = labelText.lastIndexOf(')');
+    
+    if (colonIndex === -1 || openParenIndex === -1) {
+      // Si no tiene el formato esperado, devolver como está
+      return { category: labelText, value: '', percentage: '' };
+    }
+    
+    const category = labelText.substring(0, colonIndex).trim();
+    const value = labelText.substring(colonIndex + 1, openParenIndex).trim();
+    const percentage = labelText.substring(openParenIndex + 1, closeParenIndex).trim();
+    
+    return { category, value, percentage };
+  }
+
+  private generateLayoutOptions(parts: { category: string, value: string, percentage: string }, fontSize: number) {
+    const layouts = [];
+    
+    // Layout 1: Todo en una línea
+    if (parts.value && parts.percentage) {
+      layouts.push({
+        lines: [{ text: `${parts.category}: ${parts.value} (${parts.percentage})`, isBold: false }],
+        width: this.estimateTextWidth(`${parts.category}: ${parts.value} (${parts.percentage})`, fontSize)
+      });
+      
+      // Layout 2: Categoría arriba, valor y % abajo
+      layouts.push({
+        lines: [
+          { text: `${parts.category}:`, isBold: true },
+          { text: `${parts.value} (${parts.percentage})`, isBold: false }
+        ],
+        width: Math.max(
+          this.estimateTextWidth(`${parts.category}:`, fontSize),
+          this.estimateTextWidth(`${parts.value} (${parts.percentage})`, fontSize)
+        )
+      });
+      
+      // Layout 3: Cada elemento en su línea
+      layouts.push({
+        lines: [
+          { text: `${parts.category}:`, isBold: true },
+          { text: parts.value, isBold: false },
+          { text: `(${parts.percentage})`, isBold: false }
+        ],
+        width: Math.max(
+          this.estimateTextWidth(`${parts.category}:`, fontSize),
+          this.estimateTextWidth(parts.value, fontSize),
+          this.estimateTextWidth(`(${parts.percentage})`, fontSize)
+        )
+      });
+    } else {
+      // Fallback para textos que no siguen el patrón
+      layouts.push({
+        lines: [{ text: `${parts.category}${parts.value}${parts.percentage}`, isBold: false }],
+        width: this.estimateTextWidth(`${parts.category}${parts.value}${parts.percentage}`, fontSize)
+      });
+    }
+    
+    return layouts;
+  }
+
+  private selectBestLayout(layouts: any[], availableWidth: number) {
+    // Seleccionar el layout más compacto que quepa en el espacio disponible
+    for (const layout of layouts) {
+      if (layout.width <= availableWidth) {
+        return layout;
+      }
+    }
+    // Si ninguno cabe, usar el último (más dividido)
+    return layouts[layouts.length - 1];
   }
 
   private renderWrappedText(g: d3.Selection<SVGGElement, unknown, null, undefined>,
