@@ -248,6 +248,17 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
     value: 20,
   });
 
+  // Vertical Position Controls
+  verticalPositionMode = new formattingSettings.ItemDropdown({
+    name: "verticalPositionMode",
+    displayName: "Vertical Position Mode",
+    items: [
+      { displayName: "Auto", value: "auto" },
+      { displayName: "Individual", value: "individual" },
+    ],
+    value: { displayName: "Auto", value: "auto" },
+  });
+
   // Individual line length controls (will be shown/hidden based on mode)
   lineLength_0 = new formattingSettings.NumUpDown({
     name: "lineLength_0",
@@ -309,6 +320,67 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
     value: 20,
   });
 
+  // Individual vertical position controls
+  verticalOffset_0 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_0",
+    displayName: "Category 0 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_1 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_1",
+    displayName: "Category 1 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_2 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_2",
+    displayName: "Category 2 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_3 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_3",
+    displayName: "Category 3 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_4 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_4",
+    displayName: "Category 4 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_5 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_5",
+    displayName: "Category 5 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_6 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_6",
+    displayName: "Category 6 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_7 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_7",
+    displayName: "Category 7 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_8 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_8",
+    displayName: "Category 8 Vertical Offset",
+    value: 0,
+  });
+
+  verticalOffset_9 = new formattingSettings.NumUpDown({
+    name: "verticalOffset_9",
+    displayName: "Category 9 Vertical Offset",
+    value: 0,
+  });
+
   curveTension = new formattingSettings.NumUpDown({
     name: "curveTension",
     displayName: "Curve Tension",
@@ -348,6 +420,17 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
     this.lineLength_7,
     this.lineLength_8,
     this.lineLength_9,
+    this.verticalPositionMode,
+    this.verticalOffset_0,
+    this.verticalOffset_1,
+    this.verticalOffset_2,
+    this.verticalOffset_3,
+    this.verticalOffset_4,
+    this.verticalOffset_5,
+    this.verticalOffset_6,
+    this.verticalOffset_7,
+    this.verticalOffset_8,
+    this.verticalOffset_9,
     this.curveTension,
     this.textSpacing,
     this.columnOffset,

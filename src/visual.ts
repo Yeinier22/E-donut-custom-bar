@@ -36,6 +36,11 @@ interface LineLengthConfig {
   categoryLengths: Record<string, number>;
 }
 
+interface VerticalPositionConfig {
+  mode: "auto" | "individual";
+  categoryOffsets: Record<string, number>;
+}
+
 interface DonutDataPoint {
   category: string;
   value: number;
@@ -58,6 +63,7 @@ interface SpacingConfig {
 interface RenderConfig {
   radius: number;
   lineLengthConfig: LineLengthConfig;
+  verticalPositionConfig: VerticalPositionConfig;
   width: number;
   height: number;
   wrap: TextWrapMode;
@@ -90,7 +96,7 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string): void {
-    const { radius, lineLengthConfig, width, height, wrap, spacing, dataLabels } = config;
+    const { radius, lineLengthConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
@@ -121,7 +127,7 @@ class DonutRenderer {
     const isOutside = dataLabels.labelPlacement === "outside";
     if (dataLabels.show && isOutside) {
       this.renderLines(g, viewModel, pie, radius, lineLengthConfig);
-      this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, wrap, dataLabels);
+      this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, verticalPositionConfig, wrap, dataLabels);
     } else if (dataLabels.show && !isOutside) {
       // Renderizar labels inside sin líneas
       this.renderLabelsInside(g, viewModel, pie, dataLabels);
@@ -203,7 +209,7 @@ class DonutRenderer {
     return [startPoint, midPoint, finalPoint];
   }
 
-  private calculateTextPosition(helpers: GeometryHelpers, lineLength: number): [number, number] {
+  private calculateTextPosition(helpers: GeometryHelpers, lineLength: number, category: string, verticalConfig: VerticalPositionConfig): [number, number] {
     const { mid, direction, midRadius } = helpers;
     
     const midPoint = [
@@ -212,7 +218,8 @@ class DonutRenderer {
     ];
     
     const textX = midPoint[0] + (lineLength * direction) + (DONUT_CONFIG.TEXT_SPACING * direction);
-    const textY = midPoint[1];
+    const verticalOffset = this.getVerticalOffsetForCategory(category, verticalConfig);
+    const textY = midPoint[1] + verticalOffset; // Aplicar offset vertical manual
     
     return [textX, textY];
   }
@@ -263,12 +270,13 @@ class DonutRenderer {
                       pie: d3.Pie<any, DonutDataPoint>, 
                       radius: number, 
                       lineLengthConfig: LineLengthConfig,
+                      verticalPositionConfig: VerticalPositionConfig,
                       wrap: TextWrapMode,
                       dataLabels: DataLabelsConfig): void {
     if (wrap === "wrap") {
-      this.renderWrappedLabels(g, pie(viewModel), radius, lineLengthConfig, dataLabels);
+      this.renderWrappedLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels);
     } else {
-      this.renderSingleLabels(g, pie(viewModel), radius, lineLengthConfig, dataLabels);
+      this.renderSingleLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels);
     }
   }
 
@@ -276,11 +284,12 @@ class DonutRenderer {
                             pieData: d3.PieArcDatum<DonutDataPoint>[],
                             radius: number,
                             lineLengthConfig: LineLengthConfig,
+                            verticalPositionConfig: VerticalPositionConfig,
                             dataLabels: DataLabelsConfig): void {
     pieData.forEach((d) => {
       const helpers = this.getGeometryHelpers(d, radius);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
-      const [textX, textY] = this.calculateTextPosition(helpers, lineLength);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig);
       
       const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
       const textAnchor = this.getTextAnchor(d, radius, "auto");
@@ -302,6 +311,7 @@ class DonutRenderer {
                              pieData: d3.PieArcDatum<DonutDataPoint>[],
                              radius: number,
                              lineLengthConfig: LineLengthConfig,
+                             verticalPositionConfig: VerticalPositionConfig,
                              dataLabels: DataLabelsConfig): void {
     const containerWidth = parseInt(this.svg.attr("width")) || 400;
     const centerX = containerWidth / 2;
@@ -311,7 +321,7 @@ class DonutRenderer {
     const labelInfos = pieData.map((d) => {
       const helpers = this.getGeometryHelpers(d, radius);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
-      const [textX, textY] = this.calculateTextPosition(helpers, lineLength);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig);
       const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
       const textAnchor = this.getTextAnchor(d, radius, "auto");
       const absoluteTextX = centerX + textX;
@@ -821,6 +831,13 @@ class DonutRenderer {
     return config.globalLength;
   }
 
+  private getVerticalOffsetForCategory(category: string, config: VerticalPositionConfig): number {
+    if (config.mode === "individual" && config.categoryOffsets[category] !== undefined) {
+      return config.categoryOffsets[category];
+    }
+    return 0; // Sin offset si está en modo auto
+  }
+
   private getTextAnchor(d: d3.PieArcDatum<any>, radius: number, align: TextAlign): string {
     if (align !== "auto") return align;
     const mid = (d.startAngle + d.endAngle) / 2;
@@ -944,12 +961,14 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const spacingConfig = this.getSpacingConfig(dataView);
     const radius = Math.min(options.viewport.width, options.viewport.height) / 2 - DONUT_CONFIG.MARGIN;
     const lineLengthConfig = this.getLineLengthConfig(dataView, viewModel);
+    const verticalPositionConfig = this.getVerticalPositionConfig(dataView, viewModel);
     
     const dataLabelsConfig = this.getDataLabelsConfig(dataView, this.isDrilled);
     
     const config: RenderConfig = {
       radius,
       lineLengthConfig,
+      verticalPositionConfig,
       width: options.viewport.width,
       height: options.viewport.height,
       wrap: DONUT_CONFIG.DEFAULT_WRAP,
@@ -1172,6 +1191,41 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     };
   }
 
+  private getVerticalPositionConfig(dataView: powerbi.DataView, viewModel: DonutDataPoint[]): VerticalPositionConfig {
+    const mode = this.getVerticalPositionMode(dataView);
+    const categoryOffsets: Record<string, number> = {};
+
+    if (mode === "individual") {
+      viewModel.forEach((d, index) => {
+        categoryOffsets[d.category] = this.getCategoryVerticalOffset(dataView, index);
+      });
+    }
+
+    return {
+      mode,
+      categoryOffsets
+    };
+  }
+
+  private getVerticalPositionMode(dataView: powerbi.DataView): "auto" | "individual" {
+    const objects = dataView?.metadata?.objects;
+    if (objects?.labelTuning?.verticalPositionMode) {
+      const mode = objects.labelTuning.verticalPositionMode as string;
+      return (mode === "individual" ? "individual" : "auto");
+    }
+    return "auto";
+  }
+
+  private getCategoryVerticalOffset(dataView: powerbi.DataView, index: number): number {
+    const objects = dataView?.metadata?.objects;
+    const propertyName = `verticalOffset_${index}`;
+    if (objects?.labelTuning?.[propertyName]) {
+      const value = objects.labelTuning[propertyName] as number;
+      return Math.max(-100, Math.min(100, value)); // Limitar entre -100 y +100
+    }
+    return 0; // Sin offset por defecto
+  }
+
   private getLineLengthMode(dataView: powerbi.DataView): LineLengthMode {
     const objects = dataView?.metadata?.objects;
     if (objects?.labelTuning?.lineLengthMode) {
@@ -1250,11 +1304,12 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   public getFormattingModel(): powerbi.visuals.FormattingModel {
     // Actualizar visibilidad de slices según el modo
     const isIndividualMode = this.formattingSettings.labelTuningCard.lineLengthMode.value.value === "individual";
+    const isVerticalIndividualMode = this.formattingSettings.labelTuningCard.verticalPositionMode.value.value === "individual";
     
-    // Controlar visibilidad de configuraciones individuales
+    // Controlar visibilidad de configuraciones individuales de línea
     this.formattingSettings.labelTuningCard.lineLength.visible = !isIndividualMode;
     
-    // Configurar slices individuales con nombres de categorías si están disponibles
+    // Configurar slices individuales de línea con nombres de categorías si están disponibles
     const individualSlices = [
       this.formattingSettings.labelTuningCard.lineLength_0,
       this.formattingSettings.labelTuningCard.lineLength_1,
@@ -1269,8 +1324,35 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     ];
     
     individualSlices.forEach((slice, index) => {
-      slice.visible = isIndividualMode;
-      slice.displayName = `Category ${index} Line Length`;
+      slice.visible = isIndividualMode && index < this.baseCategories.length;
+      if (isIndividualMode && this.baseCategories && this.baseCategories[index]) {
+        slice.displayName = `${this.baseCategories[index]} Line Length`;
+      } else {
+        slice.displayName = `Category ${index} Line Length`;
+      }
+    });
+
+    // Configurar slices individuales de posición vertical con nombres de categorías reales
+    const verticalOffsetSlices = [
+      this.formattingSettings.labelTuningCard.verticalOffset_0,
+      this.formattingSettings.labelTuningCard.verticalOffset_1,
+      this.formattingSettings.labelTuningCard.verticalOffset_2,
+      this.formattingSettings.labelTuningCard.verticalOffset_3,
+      this.formattingSettings.labelTuningCard.verticalOffset_4,
+      this.formattingSettings.labelTuningCard.verticalOffset_5,
+      this.formattingSettings.labelTuningCard.verticalOffset_6,
+      this.formattingSettings.labelTuningCard.verticalOffset_7,
+      this.formattingSettings.labelTuningCard.verticalOffset_8,
+      this.formattingSettings.labelTuningCard.verticalOffset_9
+    ];
+    
+    verticalOffsetSlices.forEach((slice, index) => {
+      slice.visible = isVerticalIndividualMode && index < this.baseCategories.length;
+      if (isVerticalIndividualMode && this.baseCategories && this.baseCategories[index]) {
+        slice.displayName = `${this.baseCategories[index]} Vertical Offset`;
+      } else {
+        slice.displayName = `Category ${index} Vertical Offset`;
+      }
     });
     
     // Control data labels visibility based on show toggle

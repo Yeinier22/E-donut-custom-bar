@@ -789,7 +789,26 @@
           "type": {
             "numeric": true
           }
-        }
+        },
+        "verticalPositionMode": {
+          "displayName": "Vertical Position Mode",
+          "type": {
+            "enumeration": [
+              { "displayName": "Auto", "value": "auto" },
+              { "displayName": "Individual", "value": "individual" }
+            ]
+          }
+        },
+        "verticalOffset_0": { "type": { "numeric": true } },
+        "verticalOffset_1": { "type": { "numeric": true } },
+        "verticalOffset_2": { "type": { "numeric": true } },
+        "verticalOffset_3": { "type": { "numeric": true } },
+        "verticalOffset_4": { "type": { "numeric": true } },
+        "verticalOffset_5": { "type": { "numeric": true } },
+        "verticalOffset_6": { "type": { "numeric": true } },
+        "verticalOffset_7": { "type": { "numeric": true } },
+        "verticalOffset_8": { "type": { "numeric": true } },
+        "verticalOffset_9": { "type": { "numeric": true } }
       }
     },
     "labelTuningDrill": {
