@@ -103,9 +103,9 @@ class DonutRenderer {
     // Limpiar SVG
     this.svg.selectAll("*").remove();
     
-    // Render navigation buttons if in drill mode and header is enabled
-    if (isDrilled && showDrillHeader) {
-      this.renderNavigationButtons(width, height, onBackClick, drillCategory);
+    // Render navigation buttons if in drill mode
+    if (isDrilled) {
+      this.renderNavigationButtons(width, height, onBackClick, drillCategory, showDrillHeader);
     }
     
     // Calcular posición Y usando centerYPercent
@@ -136,8 +136,8 @@ class DonutRenderer {
     }
   }
 
-  private renderNavigationButtons(width: number, height: number, onBackClick?: () => void, drillCategory?: string): void {
-    // Back button
+  private renderNavigationButtons(width: number, height: number, onBackClick?: () => void, drillCategory?: string, showDrillHeader?: boolean): void {
+    // Back button - always show in drill mode
     const backButton = this.svg.append("g")
       .attr("class", "nav-button")
       .attr("transform", "translate(20, 20)")
@@ -151,8 +151,8 @@ class DonutRenderer {
       .style("font-weight", "bold")
       .style("fill", "#555");
     
-    // Title showing drill category
-    if (drillCategory) {
+    // Title showing drill category - only show if showDrillHeader is true
+    if (drillCategory && showDrillHeader) {
       this.svg.append("text")
         .text(`Details for ${drillCategory}`)
         .attr("x", width / 2)

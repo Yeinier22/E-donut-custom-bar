@@ -190,6 +190,129 @@ class DrillHeaderCardSettings extends FormattingSettingsCard {
 }
 
 /**
+ * Hover Style Formatting Card
+ */
+class HoverStyleCardSettings extends FormattingSettingsCard {
+  color = new formattingSettings.ColorPicker({
+    name: "color",
+    displayName: "Hover color",
+    value: { value: "#FFD700" },
+  });
+
+  opacity = new formattingSettings.NumUpDown({
+    name: "opacity",
+    displayName: "Opacity (%)",
+    value: 80,
+  });
+
+  fillOpacity = new formattingSettings.NumUpDown({
+    name: "fillOpacity",
+    displayName: "Fill Opacity (%)",
+    value: 90,
+  });
+
+  borderOpacity = new formattingSettings.NumUpDown({
+    name: "borderOpacity",
+    displayName: "Border Opacity (%)",
+    value: 100,
+  });
+
+  duration = new formattingSettings.NumUpDown({
+    name: "duration",
+    displayName: "Transition duration (ms)",
+    value: 200,
+  });
+
+  easing = new formattingSettings.ItemDropdown({
+    name: "easing",
+    displayName: "Easing",
+    items: [
+      { displayName: "Linear", value: "linear" },
+      { displayName: "cubicOut", value: "cubicOut" },
+      { displayName: "elasticOut", value: "elasticOut" },
+    ],
+    value: { displayName: "cubicOut", value: "cubicOut" },
+  });
+
+  borderColor = new formattingSettings.ColorPicker({
+    name: "borderColor",
+    displayName: "Border Color",
+    value: { value: "#333333" },
+  });
+
+  borderWidth = new formattingSettings.NumUpDown({
+    name: "borderWidth",
+    displayName: "Border Width (px)",
+    value: 2,
+  });
+
+  expandX = new formattingSettings.NumUpDown({
+    name: "expandX",
+    displayName: "Horizontal Overshoot (px)",
+    value: 0,
+  });
+
+  expandY = new formattingSettings.NumUpDown({
+    name: "expandY",
+    displayName: "Vertical Overshoot (px)",
+    value: 0,
+  });
+
+  name: string = "hoverStyle";
+  displayName: string = "Hover Style";
+  slices: Array<FormattingSettingsSlice> = [
+    this.color,
+    this.opacity,
+    this.fillOpacity,
+    this.borderOpacity,
+    this.duration,
+    this.easing,
+    this.borderColor,
+    this.borderWidth,
+    this.expandX,
+    this.expandY,
+  ];
+}
+
+/**
+ * Selection Style Formatting Card
+ */
+class SelectionStyleCardSettings extends FormattingSettingsCard {
+  color = new formattingSettings.ColorPicker({
+    name: "color",
+    displayName: "Fill color",
+    value: { value: "#FF6B6B" },
+  });
+
+  borderColor = new formattingSettings.ColorPicker({
+    name: "borderColor",
+    displayName: "Border color",
+    value: { value: "#FF0000" },
+  });
+
+  borderWidth = new formattingSettings.NumUpDown({
+    name: "borderWidth",
+    displayName: "Border width",
+    value: 3,
+  });
+
+  opacity = new formattingSettings.NumUpDown({
+    name: "opacity",
+    displayName: "Opacity (%)",
+    value: 85,
+  });
+
+  name: string = "selectionStyle";
+  displayName: string = "Selection Style";
+  slices: Array<FormattingSettingsSlice> = [
+    this.color,
+    this.borderColor,
+    this.borderWidth,
+    this.opacity,
+  ];
+}
+
+/**
  * Spacing Formatting Card
  */
 class SpacingCardSettings extends FormattingSettingsCard {
@@ -687,6 +810,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   dataLabelsDrillCard = new DataLabelsDrillCardSettings();
   dataPointCard = new DataPointCardSettings();
   drillHeaderCard = new DrillHeaderCardSettings();
+  hoverStyleCard = new HoverStyleCardSettings();
+  selectionStyleCard = new SelectionStyleCardSettings();
   spacingCard = new SpacingCardSettings();
   legendCard = new LegendCardSettings();
   labelTuningCard = new LabelTuningCardSettings();
@@ -697,6 +822,8 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.dataLabelsDrillCard,
     this.dataPointCard,
     this.drillHeaderCard,
+    this.hoverStyleCard,
+    this.selectionStyleCard,
     this.spacingCard,
     this.legendCard,
     this.labelTuningCard,
