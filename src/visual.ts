@@ -940,6 +940,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   private dataView: powerbi.DataView | null = null;
   private baseCategories: any[] = [];
   private currentCategories: any[] = [];
+  private allDrillCategoryNames: string[] = []; // Nombres descriptivos para UI (hasta 10 categorías)
   
   // Cross-filtering system
   private selectionManager: ISelectionManager;
@@ -1421,6 +1422,10 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
           this.drillCategory = category;
           this.drillCategoryKey = clickedKey;
           this.currentCategories = drillData.map(d => d.category);
+          
+          // Generar nombres para todos los controles
+          this.allDrillCategoryNames = this.generateAllCategoryNames(dataView);
+          
           this.update(options); // Re-render with drill data
         }
       }
@@ -1435,6 +1440,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       this.drillCategory = null;
       this.drillCategoryKey = null;
       this.currentCategories = [...this.baseCategories];
+      this.allDrillCategoryNames = []; // Limpiar nombres
       this.update(options); // Re-render with main data
     } : undefined;
 
@@ -1631,6 +1637,63 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     return dataPoints;
   }
 
+  private generateAllCategoryNames(dataView: powerbi.DataView): string[] {
+    const names: string[] = [];
+    const categorical = dataView.categorical;
+    
+    console.log("🔍 generateAllCategoryNames - categorical:", categorical);
+    console.log("🔍 generateAllCategoryNames - categories length:", categorical?.categories?.length);
+    
+    if (!categorical || !categorical.categories || categorical.categories.length < 2) {
+      // Si no hay estructura de drill, usar nombres genéricos
+      for (let i = 0; i < 10; i++) {
+        names.push(`Category ${i}`);
+      }
+      return names;
+    }
+
+    const cat1 = categorical.categories[0].values;
+    const cat2 = categorical.categories[1].values;
+    const rowCount = (cat1 as any[]).length;
+
+    console.log("📊 Datos de categorías:");
+    console.log("  - cat1 (primera categoría):", cat1);
+    console.log("  - cat2 (segunda categoría):", cat2);
+    console.log("  - rowCount:", rowCount);
+
+    // Crear un mapa ordenado de todas las combinaciones únicas
+    const combinationsOrder: string[] = [];
+    const seen = new Set<string>();
+    
+    for (let i = 0; i < rowCount; i++) {
+      const category1 = String(cat1[i] || '');
+      const category2 = String(cat2[i] || '');
+      
+      if (category1 && category2) {
+        const combinationKey = `${category1}-${category2}`;
+        if (!seen.has(combinationKey)) {
+          seen.add(combinationKey);
+          combinationsOrder.push(combinationKey);
+        }
+      }
+    }
+    
+    // Debug: ver qué combinaciones estamos generando
+    console.log("🔍 Generando nombres para drill:", combinationsOrder);
+    
+    // Asignar hasta 10 nombres basándose en las combinaciones reales
+    for (let i = 0; i < 10; i++) {
+      if (i < combinationsOrder.length) {
+        names.push(combinationsOrder[i]);
+      } else {
+        names.push(`Category ${i}`); // Fallback para índices sin combinaciones
+      }
+    }
+    
+    console.log("🏷️ Nombres finales generados:", names);
+    return names;
+  }
+
   private getLineLengthConfig(dataView: powerbi.DataView, viewModel: DonutDataPoint[], isDrilled: boolean): LineLengthConfig {
     const mode = this.getLineLengthMode(dataView, isDrilled);
     const globalLength = this.getGlobalLineLength(dataView, isDrilled);
@@ -1756,6 +1819,15 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
 
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
+    console.log("🎛️ getFormattingModel - isDrilled:", this.isDrilled);
+    console.log("🎛️ getFormattingModel - allDrillCategoryNames:", this.allDrillCategoryNames);
+    
+    // Generar nombres para todos los controles si estamos en drill y tenemos datos
+    if (this.isDrilled && this.dataView) {
+      console.log("🔄 Generando nombres para drill (forzado)...");
+      this.allDrillCategoryNames = this.generateAllCategoryNames(this.dataView);
+    }
+    
     // Actualizar visibilidad de slices según el modo
     const isIndividualMode = this.formattingSettings.labelTuningCard.lineLengthMode.value.value === "individual";
     const isVerticalIndividualMode = this.formattingSettings.labelTuningCard.verticalPositionMode.value.value === "individual";
@@ -1806,6 +1878,68 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
         slice.displayName = `${this.baseCategories[index]} Vertical Offset`;
       } else {
         slice.displayName = `Category ${index} Vertical Offset`;
+      }
+    });
+    
+    // ========== CONFIGURACIÓN PARA DRILL DOWN ==========
+    // Actualizar visibilidad de slices según el modo para drill
+    const isDrillIndividualMode = this.formattingSettings.labelTuningDrillCard.lineLengthMode.value.value === "individual";
+    const isDrillVerticalIndividualMode = this.formattingSettings.labelTuningDrillCard.verticalPositionMode.value.value === "individual";
+    
+    // Controlar visibilidad de configuraciones individuales de línea para drill
+    this.formattingSettings.labelTuningDrillCard.lineLength.visible = !isDrillIndividualMode;
+    
+    // Configurar slices individuales de línea con nombres de categorías de drill si están disponibles
+    const drillIndividualSlices = [
+      this.formattingSettings.labelTuningDrillCard.lineLength_0,
+      this.formattingSettings.labelTuningDrillCard.lineLength_1,
+      this.formattingSettings.labelTuningDrillCard.lineLength_2,
+      this.formattingSettings.labelTuningDrillCard.lineLength_3,
+      this.formattingSettings.labelTuningDrillCard.lineLength_4,
+      this.formattingSettings.labelTuningDrillCard.lineLength_5,
+      this.formattingSettings.labelTuningDrillCard.lineLength_6,
+      this.formattingSettings.labelTuningDrillCard.lineLength_7,
+      this.formattingSettings.labelTuningDrillCard.lineLength_8,
+      this.formattingSettings.labelTuningDrillCard.lineLength_9
+    ];
+    
+    drillIndividualSlices.forEach((slice, index) => {
+      const hasRealName = this.allDrillCategoryNames && this.allDrillCategoryNames[index] && !this.allDrillCategoryNames[index].startsWith('Category ');
+      slice.visible = isDrillIndividualMode && (hasRealName || index < 8); // Mostrar los primeros 8 siempre, o si tiene nombre real
+      
+      if (isDrillIndividualMode && hasRealName) {
+        slice.displayName = `${this.allDrillCategoryNames[index]} Line Length`;
+        console.log(`✅ Slice ${index} configurado con nombre: ${slice.displayName}`);
+      } else {
+        slice.displayName = `Category ${index} Line Length`;
+        console.log(`❌ Slice ${index} usando nombre genérico: ${slice.displayName} (hasRealName: ${hasRealName})`);
+      }
+    });
+
+    // Configurar slices individuales de posición vertical con nombres de categorías de drill
+    const drillVerticalOffsetSlices = [
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_0,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_1,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_2,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_3,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_4,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_5,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_6,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_7,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_8,
+      this.formattingSettings.labelTuningDrillCard.verticalOffset_9
+    ];
+    
+    drillVerticalOffsetSlices.forEach((slice, index) => {
+      const hasRealName = this.allDrillCategoryNames && this.allDrillCategoryNames[index] && !this.allDrillCategoryNames[index].startsWith('Category ');
+      slice.visible = isDrillVerticalIndividualMode && (hasRealName || index < 8); // Mostrar los primeros 8 siempre, o si tiene nombre real
+      
+      if (isDrillVerticalIndividualMode && hasRealName) {
+        slice.displayName = `${this.allDrillCategoryNames[index]} Vertical Offset`;
+        console.log(`✅ VOffset ${index} configurado con nombre: ${slice.displayName}`);
+      } else {
+        slice.displayName = `Category ${index} Vertical Offset`;
+        console.log(`❌ VOffset ${index} usando nombre genérico: ${slice.displayName} (hasRealName: ${hasRealName})`);
       }
     });
     

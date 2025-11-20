@@ -49,6 +49,66 @@ function updateStatus() {
   `;
 }
 
+// Función de prueba para generateAllCategoryNames
+function testGenerateAllCategoryNames(dataView) {
+  log('🔍 TEST: generateAllCategoryNames - dataView:', dataView);
+  
+  const names = [];
+  const categorical = dataView.categorical;
+  
+  log('🔍 TEST: categorical:', categorical);
+  log('🔍 TEST: categories length:', categorical?.categories?.length);
+  
+  if (!categorical || !categorical.categories || categorical.categories.length < 2) {
+    log('❌ TEST: No hay estructura de drill adecuada');
+    for (let i = 0; i < 10; i++) {
+      names.push(`Category ${i}`);
+    }
+    return names;
+  }
+
+  const cat1 = categorical.categories[0].values;
+  const cat2 = categorical.categories[1].values;
+  const rowCount = cat1.length;
+
+  log('📊 TEST: Datos de categorías:');
+  log('  - cat1 (primera categoría):', cat1);
+  log('  - cat2 (segunda categoría):', cat2);
+  log('  - rowCount:', rowCount);
+
+  // Crear un mapa ordenado de todas las combinaciones únicas
+  const combinationsOrder = [];
+  const seen = new Set();
+  
+  for (let i = 0; i < rowCount; i++) {
+    const category1 = String(cat1[i] || '');
+    const category2 = String(cat2[i] || '');
+    
+    if (category1 && category2) {
+      const combinationKey = `${category1}-${category2}`;
+      if (!seen.has(combinationKey)) {
+        seen.add(combinationKey);
+        combinationsOrder.push(combinationKey);
+        log(`  ➕ TEST: Nueva combinación [${combinationsOrder.length - 1}]: ${combinationKey}`);
+      }
+    }
+  }
+  
+  log('🏷️ TEST: Combinaciones únicas encontradas:', combinationsOrder);
+  
+  // Asignar hasta 10 nombres basándose en las combinaciones reales
+  for (let i = 0; i < 10; i++) {
+    if (i < combinationsOrder.length) {
+      names.push(combinationsOrder[i]);
+    } else {
+      names.push(`Category ${i}`); // Fallback para índices sin combinaciones
+    }
+  }
+  
+  log('✅ TEST: Nombres finales generados:', names);
+  return names;
+}
+
 // Datos de ejemplo
 const sampleDataSingle = {
   categorical: {
@@ -455,6 +515,11 @@ function updateChart() {
       drillCategoryKey = clickedKey;
       currentCategories = drillData.map(d => d.category);
       log('Drilling down successfully');
+      
+      // TEST: Simular generateAllCategoryNames después del drill
+      const allDrillCategoryNames = testGenerateAllCategoryNames(dataView);
+      log('🎯 TEST: Nombres que se usarían en formatting model:', allDrillCategoryNames);
+      
       updateStatus();
       updateChart(); // Re-render with drill data
     } else {
