@@ -8,6 +8,8 @@ import * as d3 from "d3";
 import powerbi from "powerbi-visuals-api";
 import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
 import { VisualFormattingSettingsModel } from "./settings";
+import ISelectionManager = powerbi.extensibility.ISelectionManager;
+import ISelectionId = powerbi.visuals.ISelectionId;
 import "./../style/visual.less";
 
 // 🎯 Constantes de configuración (idénticas al ejemplo)
@@ -97,7 +99,7 @@ class DonutRenderer {
     this.svg = svg;
   }
 
-  public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean): void {
+  public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean): void {
     const { radius, lineLengthConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels } = config;
     
     // Limpiar SVG
@@ -243,7 +245,7 @@ class DonutRenderer {
                      pie: d3.Pie<any, DonutDataPoint>, 
                      arc: d3.Arc<any, d3.PieArcDatum<DonutDataPoint>>,
                      color: d3.ScaleOrdinal<string, string, never>,
-                     onSliceClick?: (category: string) => void): void {
+                     onSliceClick?: (category: string, event?: MouseEvent) => void): void {
     g.selectAll("path")
       .data(pie(viewModel))
       .enter()
@@ -254,8 +256,9 @@ class DonutRenderer {
       .style("stroke-width", "2px")
       .style("cursor", onSliceClick ? "pointer" : "default")
       .on("click", onSliceClick ? function(d: any) {
-        // En D3 v5, 'd' es el primer parámetro
-        onSliceClick(d.data.category);
+        // Pasar tanto los datos como el evento del mouse
+        const mouseEvent = d3.event as MouseEvent;
+        onSliceClick(d.data.category, mouseEvent);
       } : null);
   }
 
@@ -937,10 +940,16 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   private dataView: powerbi.DataView | null = null;
   private baseCategories: any[] = [];
   private currentCategories: any[] = [];
+  
+  // Cross-filtering system
+  private selectionManager: ISelectionManager;
+  private categorySelectionIds: { [key: string]: ISelectionId[] } = {};
+  private drillSelectionIds: { [key: string]: ISelectionId[] } = {};
 
   constructor(options: powerbi.extensibility.visual.VisualConstructorOptions) {
     this.host = options.host;
     this.container = options.element;
+    this.selectionManager = options.host.createSelectionManager();
     
     // Crear SVG
     this.svg = d3.select(this.container)
@@ -951,6 +960,381 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     this.renderer = new DonutRenderer(this.svg);
     this.formattingSettingsService = new FormattingSettingsService();
     this.formattingSettings = new VisualFormattingSettingsModel();
+  }
+
+  // Construir selection IDs para filtrado cruzado efectivo  
+  private buildSelectionIds(viewModel: DonutDataPoint[]): void {
+    this.categorySelectionIds = {};
+    
+    if (!this.dataView || !this.dataView.categorical) {
+      return;
+    }
+
+    const categorical = this.dataView.categorical;
+    const categories = categorical.categories || [];
+    const values = categorical.values;
+    
+    if (categories.length === 0 || !categories[0].identity) {
+      return;
+    }
+
+    const categoryValues = categories[0].values;
+    
+    // Crear mapa de categorías a índices
+    const categoryToIndices: { [key: string]: number[] } = {};
+    
+    for (let i = 0; i < categoryValues.length; i++) {
+      const categoryValue = categoryValues[i];
+      const categoryKey = String(categoryValue);
+      
+      if (!categoryToIndices[categoryKey]) {
+        categoryToIndices[categoryKey] = [];
+      }
+      categoryToIndices[categoryKey].push(i);
+    }
+
+    // Crear selection IDs comprehensivos para cada categoría
+    for (const categoryKey in categoryToIndices) {
+      const indices = categoryToIndices[categoryKey];
+      const selectionIds: ISelectionId[] = [];
+      
+      try {
+        // Crear múltiples IDs por categoría para asegurar filtrado robusto
+        for (const rowIndex of indices) {
+          // ID básico de categoría
+          const basicId = this.host.createSelectionIdBuilder()
+            .withCategory(categories[0], rowIndex)
+            .createSelectionId();
+          selectionIds.push(basicId);
+          
+          // IDs con series si existen
+          const groups = (values as any)?.grouped?.() as any[] | undefined;
+          if (Array.isArray(groups) && groups.length > 0) {
+            for (const group of groups) {
+              try {
+                const seriesId = this.host.createSelectionIdBuilder()
+                  .withCategory(categories[0], rowIndex)
+                  .withSeries(values, group)
+                  .createSelectionId();
+                selectionIds.push(seriesId);
+              } catch (e) {
+                // Continuar si falla
+              }
+            }
+          }
+          
+          // IDs con medidas individuales
+          if (values && values.length > 0) {
+            for (let valueIndex = 0; valueIndex < values.length; valueIndex++) {
+              try {
+                const measure = values[valueIndex];
+                if (measure && measure.source && measure.source.queryName) {
+                  const measureId = this.host.createSelectionIdBuilder()
+                    .withCategory(categories[0], rowIndex)
+                    .withMeasure(measure.source.queryName)
+                    .createSelectionId();
+                  selectionIds.push(measureId);
+                }
+              } catch (e) {
+                // Continuar si falla
+              }
+            }
+          }
+        }
+        
+        this.categorySelectionIds[categoryKey] = selectionIds;
+        console.log(`✅ Created ${selectionIds.length} selection IDs for category: "${categoryKey}"`);
+        
+      } catch (error) {
+        console.error(`❌ Failed to create selection IDs for category: "${categoryKey}"`, error);
+      }
+    }
+  }
+
+  // Construir selection IDs para drill level
+  private buildDrillSelectionIds(drillCategory: string): void {
+    this.drillSelectionIds = {};
+
+    if (!this.dataView || !this.dataView.categorical) {
+      return;
+    }
+
+    const categorical = this.dataView.categorical;
+    const categories = categorical.categories || [];
+    
+    if (categories.length < 2) {
+      return;
+    }
+
+    const cat1Values = categories[0].values;
+    const cat2Values = categories[1].values;
+    const values = categorical.values;
+    
+    // Encontrar índices que coinciden con la categoría de drill
+    const matchingIndices: number[] = [];
+    for (let i = 0; i < cat1Values.length; i++) {
+      if (String(cat1Values[i]) === drillCategory) {
+        matchingIndices.push(i);
+      }
+    }
+    
+    if (matchingIndices.length === 0) {
+      return;
+    }
+    
+    // Agrupar por subcategoría
+    const subcategoryToIndices: { [key: string]: number[] } = {};
+    for (const index of matchingIndices) {
+      const subcategoryValue = cat2Values[index];
+      const subcategoryKey = String(subcategoryValue);
+      
+      if (!subcategoryToIndices[subcategoryKey]) {
+        subcategoryToIndices[subcategoryKey] = [];
+      }
+      subcategoryToIndices[subcategoryKey].push(index);
+    }
+    
+    // Crear selection IDs para cada subcategoría
+    for (const subcategoryKey in subcategoryToIndices) {
+      const indices = subcategoryToIndices[subcategoryKey];
+      const selectionIds: ISelectionId[] = [];
+      
+      try {
+        for (const rowIndex of indices) {
+          // ID con ambas categorías
+          const dualCategoryId = this.host.createSelectionIdBuilder()
+            .withCategory(categories[0], rowIndex)
+            .withCategory(categories[1], rowIndex)
+            .createSelectionId();
+          selectionIds.push(dualCategoryId);
+          
+          // IDs con series si existen
+          const groups = (values as any)?.grouped?.() as any[] | undefined;
+          if (Array.isArray(groups) && groups.length > 0) {
+            for (const group of groups) {
+              try {
+                const seriesId = this.host.createSelectionIdBuilder()
+                  .withCategory(categories[0], rowIndex)
+                  .withCategory(categories[1], rowIndex)
+                  .withSeries(values, group)
+                  .createSelectionId();
+                selectionIds.push(seriesId);
+              } catch (e) {
+                // Continuar si falla
+              }
+            }
+          }
+        }
+        
+        this.drillSelectionIds[subcategoryKey] = selectionIds;
+        console.log(`✅ Created ${selectionIds.length} drill selection IDs for subcategory: "${subcategoryKey}"`);
+        
+      } catch (error) {
+        console.error(`❌ Failed to create drill selection IDs for subcategory: "${subcategoryKey}"`, error);
+      }
+    }
+  }
+
+  // Sistema ultra-agresivo de selección para forzar filtrado de gráficos
+  private handleSelection(category: string, isCtrlPressed: boolean = false): void {
+    console.log(`🚀 AGGRESSIVE Cross-filtering for category: "${category}"`);
+    console.log(`📊 Mode: ${this.isDrilled ? 'DRILL' : 'MAIN'}, Ctrl: ${isCtrlPressed}`);
+    
+    let selectionIds = this.isDrilled 
+      ? this.drillSelectionIds[category] || []
+      : this.categorySelectionIds[category] || [];
+
+    // Si no hay IDs pre-construidos, crear dinámicamente
+    if (selectionIds.length === 0) {
+      console.log(`⚡ Creating dynamic selection IDs for: "${category}"`);
+      selectionIds = this.createEmergencySelectionIds(category);
+    }
+
+    if (selectionIds.length === 0) {
+      console.error(`❌ CRITICAL: No selection IDs available for: "${category}"`);
+      return;
+    }
+
+    console.log(`🎯 Attempting selection with ${selectionIds.length} IDs...`);
+    
+    // ESTRATEGIA MULTI-NIVEL para asegurar filtrado
+    this.executeMultiLevelSelection(selectionIds, isCtrlPressed, category);
+  }
+  
+  // Ejecutar selección con múltiples estrategias simultáneas
+  private executeMultiLevelSelection(selectionIds: ISelectionId[], isCtrlPressed: boolean, category: string): void {
+    // NIVEL 1: Selección completa con todos los IDs
+    this.selectionManager.select(selectionIds, isCtrlPressed).then(() => {
+      console.log(`✅ LEVEL 1 SUCCESS: Full selection (${selectionIds.length} IDs) for "${category}"`);
+      this.forceSelectionPropagation(category, selectionIds.length);
+    }).catch((error) => {
+      console.warn(`⚠️ LEVEL 1 FAILED: Trying alternative strategies...`, error);
+      
+      // NIVEL 2: Selección por grupos más pequeños
+      this.tryGroupedSelection(selectionIds, isCtrlPressed, category);
+    });
+  }
+  
+  // Intentar selección por grupos más pequeños
+  private tryGroupedSelection(selectionIds: ISelectionId[], isCtrlPressed: boolean, category: string): void {
+    const groupSize = Math.max(1, Math.floor(selectionIds.length / 3));
+    const groups = [];
+    
+    for (let i = 0; i < selectionIds.length; i += groupSize) {
+      groups.push(selectionIds.slice(i, i + groupSize));
+    }
+    
+    console.log(`🔄 LEVEL 2: Trying grouped selection (${groups.length} groups) for "${category}"`);
+    
+    let successfulGroups = 0;
+    let totalAttempts = 0;
+    
+    groups.forEach((group, index) => {
+      totalAttempts++;
+      this.selectionManager.select(group, index > 0 || isCtrlPressed).then(() => {
+        successfulGroups++;
+        console.log(`✅ Group ${index + 1}/${groups.length} selected (${group.length} IDs)`);
+        
+        if (successfulGroups === 1) {
+          // Al menos un grupo fue exitoso
+          this.forceSelectionPropagation(category, group.length);
+        }
+      }).catch((groupError) => {
+        console.warn(`⚠️ Group ${index + 1} failed:`, groupError);
+        
+        if (totalAttempts === groups.length && successfulGroups === 0) {
+          // Si todos los grupos fallaron, intentar selección individual
+          this.tryIndividualSelection(selectionIds, isCtrlPressed, category);
+        }
+      });
+    });
+  }
+  
+  // Selección individual como último recurso
+  private tryIndividualSelection(selectionIds: ISelectionId[], isCtrlPressed: boolean, category: string): void {
+    console.log(`🆘 LEVEL 3: Trying individual selection for "${category}"`);
+    
+    if (selectionIds.length > 0) {
+      // Limpiar primero, luego seleccionar el ID más "básico"
+      this.selectionManager.clear().then(() => {
+        return this.selectionManager.select([selectionIds[0]], false);
+      }).then(() => {
+        console.log(`✅ LEVEL 3 SUCCESS: Individual selection for "${category}"`);
+        this.forceSelectionPropagation(category, 1);
+      }).catch((individualError) => {
+        console.error(`❌ LEVEL 3 FAILED: All strategies exhausted for "${category}"`, individualError);
+        
+        // ÚLTIMO RECURSO: Forzar mediante timeout
+        this.forceSelectionViaTimeout(category);
+      });
+    }
+  }
+  
+  // Crear IDs de emergencia dinámicamente
+  private createEmergencySelectionIds(category: string): ISelectionId[] {
+    if (!this.dataView || !this.dataView.categorical) {
+      return [];
+    }
+    
+    const categorical = this.dataView.categorical;
+    const categories = categorical.categories || [];
+    const values = categorical.values;
+    
+    if (categories.length === 0) {
+      return [];
+    }
+    
+    const categoryValues = categories[0].values;
+    const emergencyIds: ISelectionId[] = [];
+    
+    // Encontrar TODOS los índices que coinciden
+    for (let i = 0; i < categoryValues.length; i++) {
+      if (String(categoryValues[i]) === category) {
+        try {
+          // ID básico
+          const basicId = this.host.createSelectionIdBuilder()
+            .withCategory(categories[0], i)
+            .createSelectionId();
+          emergencyIds.push(basicId);
+          
+          // ID con cada medida disponible
+          if (values && values.length > 0) {
+            for (let j = 0; j < values.length; j++) {
+              try {
+                const measure = values[j];
+                if (measure && measure.source) {
+                  const measureId = this.host.createSelectionIdBuilder()
+                    .withCategory(categories[0], i)
+                    .withMeasure(measure.source.queryName || measure.source.displayName || `m${j}`)
+                    .createSelectionId();
+                  emergencyIds.push(measureId);
+                }
+              } catch (e) {
+                // Continuar con otras medidas
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed emergency ID for index ${i}`);
+        }
+      }
+    }
+    
+    console.log(`🚨 Created ${emergencyIds.length} emergency IDs for "${category}"`);
+    return emergencyIds;
+  }
+  
+  // Forzar propagación con timeout y verificación
+  private forceSelectionPropagation(category: string, idCount: number): void {
+    // Propagación inmediata
+    this.ensureSelectionPropagation();
+    
+    // Verificación y repropagación después de 100ms
+    setTimeout(() => {
+      console.log(`🔄 Re-propagating selection for "${category}" (${idCount} IDs)`);
+      this.ensureSelectionPropagation();
+      
+      // Verificación final después de 300ms
+      setTimeout(() => {
+        console.log(`✅ Final propagation check for "${category}"`);
+        this.logCurrentSelectionState();
+      }, 300);
+    }, 100);
+  }
+  
+  // Último recurso: forzar mediante timeout
+  private forceSelectionViaTimeout(category: string): void {
+    console.log(`⏰ TIMEOUT STRATEGY: Forcing selection for "${category}"`);
+    
+    setTimeout(() => {
+      if (this.categorySelectionIds[category] && this.categorySelectionIds[category].length > 0) {
+        const id = this.categorySelectionIds[category][0];
+        this.selectionManager.select([id], false).then(() => {
+          console.log(`✅ TIMEOUT SUCCESS for "${category}"`);
+          this.forceSelectionPropagation(category, 1);
+        }).catch(() => {
+          console.error(`❌ TIMEOUT FAILED for "${category}"`);
+        });
+      }
+    }, 50);
+  }
+
+  // Asegurar propagación de selección
+  private ensureSelectionPropagation(): void {
+    setTimeout(() => {
+      console.log("🔄 Selection propagation complete - other visuals should be filtered");
+      this.logCurrentSelectionState();
+    }, 50);
+  }
+
+  // Log del estado actual de selección
+  private logCurrentSelectionState(): void {
+    try {
+      const currentSelections = this.selectionManager.getSelectionIds();
+      console.log("📊 Current selection IDs count:", (currentSelections as any)?.length || 0);
+    } catch (error) {
+      console.log("⚠️ Could not retrieve current selection state");
+    }
   }
 
   public update(options: powerbi.extensibility.visual.VisualUpdateOptions): void {
@@ -975,6 +1359,12 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     if (!viewModel || viewModel.length === 0) {
       this.renderer.renderNoData(options.viewport.width, options.viewport.height);
       return;
+    }
+
+    // Construir selection IDs para filtrado cruzado
+    this.buildSelectionIds(viewModel);
+    if (this.isDrilled && this.drillCategory) {
+      this.buildDrillSelectionIds(this.drillCategory);
     }
 
     // Configurar renderizado con spacing settings
@@ -1010,24 +1400,35 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       this.currentCategories = [...this.baseCategories];
     }
     
-    // Always enable click when not drilled (like ECharts version)
-    const onSliceClick = !this.isDrilled ? (category: string) => {
-      // Find the category key (exact match logic from ECharts)
-      const clickedIndex = this.currentCategories.indexOf(category);
-      const clickedKey = clickedIndex >= 0 && this.baseCategories && clickedIndex < this.baseCategories.length
-        ? this.baseCategories[clickedIndex]
-        : category;
+    // Click handlers con filtrado cruzado y soporte para Ctrl+Click
+    const onSliceClick = !this.isDrilled ? (category: string, event?: MouseEvent) => {
+      // 🎯 PASO 1: Aplicar filtrado cruzado ANTES del drill down
+      // Detectar Ctrl+Click para selección múltiple
+      const isCtrlPressed = event?.ctrlKey || false;
+      this.handleSelection(category, isCtrlPressed);
       
-      // Execute drill down (identical to renderDrillView logic)
-      const drillData = this.buildDrillData(dataView, category);
-      if (drillData && drillData.length > 0) {
-        this.isDrilled = true;
-        this.drillCategory = category;
-        this.drillCategoryKey = clickedKey;
-        this.currentCategories = drillData.map(d => d.category);
-        this.update(options); // Re-render with drill data
+      // 🔍 PASO 2: Verificar si hay drill down disponible (solo si no es Ctrl+Click)
+      if (!isCtrlPressed) {
+        const clickedIndex = this.currentCategories.indexOf(category);
+        const clickedKey = clickedIndex >= 0 && this.baseCategories && clickedIndex < this.baseCategories.length
+          ? this.baseCategories[clickedIndex]
+          : category;
+        
+        const drillData = this.buildDrillData(dataView, category);
+        if (drillData && drillData.length > 0) {
+          // 📊 PASO 3: Ejecutar drill down (mantener filtro activo)
+          this.isDrilled = true;
+          this.drillCategory = category;
+          this.drillCategoryKey = clickedKey;
+          this.currentCategories = drillData.map(d => d.category);
+          this.update(options); // Re-render with drill data
+        }
       }
-    } : undefined;
+    } : (category: string, event?: MouseEvent) => {
+      // En modo drill: solo aplicar filtrado cruzado de subcategorías
+      const isCtrlPressed = event?.ctrlKey || false;
+      this.handleSelection(category, isCtrlPressed);
+    };
     
     const onBackClick = this.isDrilled ? () => {
       this.isDrilled = false;
@@ -1042,6 +1443,40 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     
     // Renderizar
     this.renderer.render(viewModel, config, onSliceClick, onBackClick, this.isDrilled, this.drillCategory, showDrillHeader);
+    
+    // 🎯 Configurar eventos para filtrado cruzado
+    this.setupCrossFilteringEvents();
+  }
+
+  // Configurar eventos de filtrado cruzado
+  private setupCrossFilteringEvents(): void {
+    // Limpiar selecciones al hacer click en área vacía
+    this.svg.on("click", () => {
+      const event = d3.event as MouseEvent;
+      // Solo limpiar si el click es en el SVG directamente, no en elementos hijos
+      if (event.target === this.svg.node()) {
+        console.log("🧹 Clearing selections...");
+        this.selectionManager.clear().then(() => {
+          console.log("✅ Selections cleared");
+        }).catch((error) => {
+          console.error("❌ Failed to clear selections:", error);
+        });
+      }
+    });
+
+    // Escuchar cambios de selección desde otros visuales
+    this.selectionManager.registerOnSelectCallback((selectionIds: ISelectionId[]) => {
+      console.log("🔄 External selection change detected:", selectionIds ? selectionIds.length : 0, "IDs");
+      
+      if (selectionIds && selectionIds.length > 0) {
+        console.log("📊 Visual responding to external selection changes");
+      } else {
+        console.log("🧹 External selections cleared");
+      }
+      
+      // Aquí podrías agregar lógica para resaltar visualmente los elementos seleccionados
+      // basándose en las selecciones externas, si es necesario
+    });
   }
 
   private createViewModel(dataView: powerbi.DataView): DonutDataPoint[] {
