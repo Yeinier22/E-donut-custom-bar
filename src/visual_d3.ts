@@ -165,19 +165,28 @@ class DonutRenderer {
                      pie: d3.Pie<any, DonutDataPoint>, 
                      radius: number, 
                      lineLengthConfig: LineLengthConfig): void {
-    g.selectAll("polyline")
-      .data(pie(viewModel))
-      .enter()
-      .append("polyline")
-      .attr("stroke", "#888")
-      .attr("stroke-width", 1)
-      .attr("fill", "none")
-      .attr("points", (d: d3.PieArcDatum<any>) => {
-        const helpers = this.getGeometryHelpers(d, radius);
-        const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
-        const points = this.calculateLinePoints(helpers, lineLength);
-        return points.map((p) => p.join(",")).join(" ");
-      });
+    const pieData = pie(viewModel);
+    
+    pieData.forEach((d: d3.PieArcDatum<any>) => {
+      const helpers = this.getGeometryHelpers(d, radius);
+      const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength);
+      
+      // Línea simple desde el borde del slice hasta donde va el texto
+      const angle = helpers.mid - Math.PI / 2;
+      const x1 = Math.cos(angle) * helpers.outerRadius;
+      const y1 = Math.sin(angle) * helpers.outerRadius;
+      const x2 = textX - (helpers.direction * 8);
+      const y2 = textY;
+      
+      g.append("line")
+        .attr("stroke", "#888")
+        .attr("stroke-width", 1)
+        .attr("x1", x1)
+        .attr("y1", y1)
+        .attr("x2", x2)
+        .attr("y2", y2);
+    });
   }
 
   private renderLabels(g: d3.Selection<SVGGElement, unknown, null, undefined>, 

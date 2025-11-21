@@ -216,26 +216,18 @@ class DonutRenderer {
     ];
 
     return [startPoint, midPoint, finalPoint];
-  }
-
-  private calculateTextPosition(helpers: GeometryHelpers, lineLength: number, category: string, verticalConfig: VerticalPositionConfig): [number, number] {
+  }  private calculateTextPosition(helpers: GeometryHelpers, lineLength: number, category: string, verticalConfig: VerticalPositionConfig): [number, number] {
     const { mid, direction, outerRadius } = helpers;
     
-    // Usar el mismo cálculo que en calculateLinePoints para consistencia
-    const radialExtension = outerRadius + (outerRadius * 0.1);
-    const midPoint = [
-      Math.cos(mid - Math.PI / 2) * radialExtension,
-      Math.sin(mid - Math.PI / 2) * radialExtension
-    ];
+    // Línea simple desde el borde del slice
+    const angle = mid - Math.PI / 2;
+    const x1 = Math.cos(angle) * outerRadius;
+    const y1 = Math.sin(angle) * outerRadius;
     
-    // Calcular longitud proporcional idéntica a calculateLinePoints
-    const baseLength = outerRadius * 0.3;
-    const proportionalLength = baseLength * (lineLength / 50);
-    // Spacing proporcional al radio
-    const proportionalSpacing = (outerRadius * 0.08); // 8% del radio como spacing
-    const textX = midPoint[0] + (proportionalLength * direction) + (proportionalSpacing * direction);
-    const verticalOffset = this.getVerticalOffsetForCategory(category, verticalConfig);
-    const textY = midPoint[1] + verticalOffset;
+    // Extender la línea según lineLength
+    const extension = lineLength;
+    const textX = x1 + (direction * extension);
+    const textY = y1;
     
     return [textX, textY];
   }
@@ -268,19 +260,28 @@ class DonutRenderer {
                      radius: number, 
                      lineLengthConfig: LineLengthConfig,
                      spacing: SpacingConfig): void {
-    g.selectAll("polyline")
-      .data(pie(viewModel))
-      .enter()
-      .append("polyline")
-      .attr("stroke", "#888")
-      .attr("stroke-width", 1)
-      .attr("fill", "none")
-      .attr("points", (d: d3.PieArcDatum<any>) => {
-        const helpers = this.getGeometryHelpers(d, radius, spacing);
-        const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
-        const points = this.calculateLinePoints(helpers, lineLength);
-        return points.map((p) => p.join(",")).join(" ");
-      });
+    const pieData = pie(viewModel);
+    
+    pieData.forEach((d: d3.PieArcDatum<any>) => {
+      const helpers = this.getGeometryHelpers(d, radius, spacing);
+      const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, { mode: 'auto', categoryOffsets: {} });
+      
+      // Línea simple desde el borde del slice hasta donde va el texto
+      const angle = helpers.mid - Math.PI / 2;
+      const x1 = Math.cos(angle) * helpers.outerRadius;
+      const y1 = Math.sin(angle) * helpers.outerRadius;
+      const x2 = textX - (helpers.direction * 8);
+      const y2 = textY;
+      
+      g.append("line")
+        .attr("stroke", "#888")
+        .attr("stroke-width", 1)
+        .attr("x1", x1)
+        .attr("y1", y1)
+        .attr("x2", x2)
+        .attr("y2", y2);
+    });
   }
 
   private renderLabels(g: d3.Selection<SVGGElement, unknown, null, undefined>, 
@@ -367,17 +368,11 @@ class DonutRenderer {
     });
     
     // Aplicar separación automática anti-colisión
-    const adjustedLabels = this.resolveCollisions(labelInfos, dataLabels.fontSize, dataLabels.textSpacing);
+    const adjustedLabels = labelInfos;
     
-    // Renderizar líneas que se ajustan automáticamente a las posiciones de los labels
+    // Renderizar líneas simples para todos los labels
     adjustedLabels.forEach((labelInfo) => {
-      if (labelInfo.textY !== labelInfo.originalY) {
-        // Label fue reposicionado - renderizar línea ajustada que sigue al label
-        this.renderSmartAdjustedLine(g, labelInfo);
-      } else {
-        // Label en posición original - línea normal
-        this.renderNormalLine(g, labelInfo);
-      }
+      this.renderNormalLine(g, labelInfo);
     });
     
     // Renderizar labels con posiciones ajustadas
@@ -865,62 +860,38 @@ class DonutRenderer {
     return mid < Math.PI ? "start" : "end";
   }
 
-  // Renderizar línea inteligente que se ajusta automáticamente al label
+  // Renderizar línea simple que conecta al label reposicionado
   private renderSmartAdjustedLine(g: d3.Selection<SVGGElement, unknown, null, undefined>, labelInfo: any): void {
     const helpers = labelInfo.helpers;
-    const lineLength = labelInfo.lineLength;
+    const angle = helpers.mid - Math.PI / 2;
     
-    // Punto inicial: desde el borde del donut
-    const startPoint = [
-      Math.cos(helpers.mid - Math.PI / 2) * helpers.outerRadius,
-      Math.sin(helpers.mid - Math.PI / 2) * helpers.outerRadius
-    ];
+    const x1 = Math.cos(angle) * helpers.outerRadius;
+    const y1 = Math.sin(angle) * helpers.outerRadius;
     
-    // Punto intermedio: extensión radial corta (proporcional al radio)
-    const proportionalExtension = helpers.outerRadius * 0.1; // 10% del radio exterior
-    const radialExtension = helpers.outerRadius + proportionalExtension;
-    const midPoint = [
-      Math.cos(helpers.mid - Math.PI / 2) * radialExtension,
-      Math.sin(helpers.mid - Math.PI / 2) * radialExtension
-    ];
-    
-    // Punto final: conectar automáticamente al inicio del label reposicionado
-    const isRightSide = helpers.direction > 0;
-    const proportionalMargin = helpers.outerRadius * 0.02; // 2% del radio como margen
-    const labelStartX = isRightSide ? labelInfo.textX - proportionalMargin : labelInfo.textX + proportionalMargin;
-    const finalPoint = [
-      labelStartX,
-      labelInfo.textY // Y ajustada automáticamente por el sistema de colisiones
-    ];
-
-    // Segmento 1: Línea radial desde el donut
     g.append("line")
-      .attr("x1", startPoint[0])
-      .attr("y1", startPoint[1])
-      .attr("x2", midPoint[0])
-      .attr("y2", midPoint[1])
-      .attr("stroke", "#888")
-      .attr("stroke-width", 1);
-    
-    // Segmento 2: Línea horizontal que busca automáticamente el inicio del label
-    g.append("line")
-      .attr("x1", midPoint[0])
-      .attr("y1", midPoint[1])
-      .attr("x2", finalPoint[0])
-      .attr("y2", finalPoint[1])
-      .attr("stroke", "#888")
-      .attr("stroke-width", 1);
-  }
-
-  // Renderizar línea normal para labels no reposicionados
-  private renderNormalLine(g: d3.Selection<SVGGElement, unknown, null, undefined>, labelInfo: any): void {
-    const points = this.calculateLinePoints(labelInfo.helpers, labelInfo.lineLength);
-    
-    g.append("polyline")
       .attr("stroke", "#888")
       .attr("stroke-width", 1)
-      .attr("fill", "none")
-      .attr("points", points.map((p) => p.join(",")).join(" "));
+      .attr("x1", x1)
+      .attr("y1", y1)
+      .attr("x2", labelInfo.textX - (helpers.direction * 8))
+      .attr("y2", labelInfo.textY);
+  }
+
+  // Renderizar línea simple para labels no reposicionados
+  private renderNormalLine(g: d3.Selection<SVGGElement, unknown, null, undefined>, labelInfo: any): void {
+    const helpers = labelInfo.helpers;
+    const angle = helpers.mid - Math.PI / 2;
+    
+    const x1 = Math.cos(angle) * helpers.outerRadius;
+    const y1 = Math.sin(angle) * helpers.outerRadius;
+    
+    g.append("line")
+      .attr("stroke", "#888")
+      .attr("stroke-width", 1)
+      .attr("x1", x1)
+      .attr("y1", y1)
+      .attr("x2", labelInfo.textX - (helpers.direction * 8))
+      .attr("y2", labelInfo.textY);
   }
 }
 
@@ -1643,12 +1614,50 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     
     console.log("🔍 generateAllCategoryNames - categorical:", categorical);
     console.log("🔍 generateAllCategoryNames - categories length:", categorical?.categories?.length);
+    console.log("🔍 generateAllCategoryNames - isDrilled:", this.isDrilled);
+    console.log("🔍 generateAllCategoryNames - baseCategories:", this.baseCategories);
+    
+    // Si estamos en modo drill, generar combinaciones basadas en los datos actuales
+    if (this.isDrilled && categorical && categorical.categories && categorical.categories.length > 0) {
+      console.log("🎯 Generando nombres de drill desde datos actuales");
+      
+      // En modo drill, usar las categorías actuales del drill
+      const drillCategories = categorical.categories[0].values;
+      const uniqueDrillCategories = [];
+      const seen = new Set();
+      
+      for (const cat of drillCategories) {
+        const catStr = String(cat);
+        if (!seen.has(catStr)) {
+          seen.add(catStr);
+          uniqueDrillCategories.push(catStr);
+        }
+      }
+      
+      console.log("🔍 Categorías únicas del drill:", uniqueDrillCategories);
+      
+      // Usar las categorías de drill directamente
+      uniqueDrillCategories.forEach((category, index) => {
+        if (index < 10) {
+          names.push(category);
+        }
+      });
+      
+      // Completar hasta 10 con nombres genéricos si es necesario
+      for (let i = names.length; i < 10; i++) {
+        names.push(`Category ${i}`);
+      }
+      
+      console.log("🏷️ Nombres generados desde drill actual:", names);
+      return names;
+    }
     
     if (!categorical || !categorical.categories || categorical.categories.length < 2) {
       // Si no hay estructura de drill, usar nombres genéricos
       for (let i = 0; i < 10; i++) {
         names.push(`Category ${i}`);
       }
+      console.log("🏷️ Nombres genéricos (sin estructura drill):", names);
       return names;
     }
 
