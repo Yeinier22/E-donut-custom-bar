@@ -159,7 +159,14 @@ class DonutRenderer {
       .attr("class", "nav-button")
       .attr("transform", "translate(20, 20)")
       .style("cursor", "pointer")
-      .on("click", onBackClick);
+      .on("click", () => {
+        if (onBackClick) {
+          onBackClick();
+          // Prevenir propagación
+          const event = d3.event as Event;
+          event.stopPropagation();
+        }
+      });
     
     backButton.append("text")
       .text("↩ Back")
@@ -1403,6 +1410,12 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       // 🎯 PASO 1: Aplicar filtrado cruzado ANTES del drill down
       // Detectar Ctrl+Click para selección múltiple
       const isCtrlPressed = event?.ctrlKey || false;
+      
+      // Si NO es Ctrl+Click, limpiar selecciones previas primero
+      if (!isCtrlPressed) {
+        console.log("🔄 Single click detected - clearing previous selections");
+      }
+      
       this.handleSelection(category, isCtrlPressed);
       
       // 🔍 PASO 2: Verificar si hay drill down disponible (solo si no es Ctrl+Click)
@@ -1433,12 +1446,26 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     };
     
     const onBackClick = this.isDrilled ? () => {
-      this.isDrilled = false;
-      this.drillCategory = null;
-      this.drillCategoryKey = null;
-      this.currentCategories = [...this.baseCategories];
-      this.allDrillCategoryNames = []; // Limpiar nombres
-      this.update(options); // Re-render with main data
+      console.log("🔙 Back button clicked - clearing selections");
+      // IMPORTANTE: Limpiar todas las selecciones antes de volver
+      this.selectionManager.clear().then(() => {
+        console.log("✅ Selections cleared on back");
+        this.isDrilled = false;
+        this.drillCategory = null;
+        this.drillCategoryKey = null;
+        this.currentCategories = [...this.baseCategories];
+        this.allDrillCategoryNames = []; // Limpiar nombres
+        this.update(options); // Re-render with main data
+      }).catch((error) => {
+        console.error("❌ Failed to clear selections on back:", error);
+        // Intentar volver de todas formas
+        this.isDrilled = false;
+        this.drillCategory = null;
+        this.drillCategoryKey = null;
+        this.currentCategories = [...this.baseCategories];
+        this.allDrillCategoryNames = [];
+        this.update(options);
+      });
     } : undefined;
 
     // Get drill header configuration
@@ -1457,16 +1484,27 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   // Configurar eventos de filtrado cruzado
   private setupCrossFilteringEvents(): void {
     // Limpiar selecciones al hacer click en área vacía
-    this.svg.on("click", () => {
+    this.svg.on("click", (d: any, i: number, nodes: any[]) => {
       const event = d3.event as MouseEvent;
-      // Solo limpiar si el click es en el SVG directamente, no en elementos hijos
-      if (event.target === this.svg.node()) {
-        console.log("🧹 Clearing selections...");
+      const target = event.target as any;
+      
+      // Verificar si el click fue en el SVG o en un área vacía (no en slices, text, lines, etc.)
+      const isEmptyArea = target === this.svg.node() || 
+                         (target.tagName && target.tagName.toLowerCase() === 'svg') || 
+                         (target.classList && target.classList.contains('empty-area'));
+      
+      if (isEmptyArea) {
+        console.log("🧹 Click on empty area - clearing all selections...");
         this.selectionManager.clear().then(() => {
-          console.log("✅ Selections cleared");
+          console.log("✅ All selections cleared - filters removed from other visuals");
+          // Forzar propagación
+          this.ensureSelectionPropagation();
         }).catch((error) => {
           console.error("❌ Failed to clear selections:", error);
         });
+        
+        // Prevenir propagación del evento
+        event.stopPropagation();
       }
     });
 
@@ -1477,7 +1515,9 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       if (selectionIds && selectionIds.length > 0) {
         console.log("📊 Visual responding to external selection changes");
       } else {
-        console.log("🧹 External selections cleared");
+        console.log("🧹 External selections cleared - this visual's filter should now be removed");
+        // Cuando otros visuales limpian selecciones, asegurar que este visual también se limpie
+        this.ensureSelectionPropagation();
       }
       
       // Aquí podrías agregar lógica para resaltar visualmente los elementos seleccionados
