@@ -228,11 +228,14 @@ class DonutRenderer {
     // Obtener offset angular personalizado para esta categoría
     const angleOffset = this.getLineAngleForCategory(category, angleConfig);
     
+    // Obtener offset vertical personalizado para esta categoría
+    const verticalOffset = this.getVerticalOffsetForCategory(category, verticalConfig);
+    
     // Extender radialmente desde el borde del slice con el ángulo ajustado
     const angle = (mid - Math.PI / 2) + angleOffset;
     const extension = outerRadius + lineLength;
     const textX = Math.cos(angle) * extension;
-    const textY = Math.sin(angle) * extension;
+    const textY = Math.sin(angle) * extension + verticalOffset;
     
     return [textX, textY];
   }
