@@ -400,6 +400,78 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
     value: 20,
   });
 
+  // Line Angle Controls
+  lineAngleMode = new formattingSettings.ItemDropdown({
+    name: "lineAngleMode",
+    displayName: "Line Angle Mode",
+    items: [
+      { displayName: "Auto", value: "auto" },
+      { displayName: "Individual", value: "individual" },
+    ],
+    value: { displayName: "Auto", value: "auto" },
+  });
+
+  // Individual angle controls (in degrees, -90 to +90)
+  lineAngle_0 = new formattingSettings.NumUpDown({
+    name: "lineAngle_0",
+    displayName: "Category 0 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_1 = new formattingSettings.NumUpDown({
+    name: "lineAngle_1",
+    displayName: "Category 1 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_2 = new formattingSettings.NumUpDown({
+    name: "lineAngle_2",
+    displayName: "Category 2 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_3 = new formattingSettings.NumUpDown({
+    name: "lineAngle_3",
+    displayName: "Category 3 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_4 = new formattingSettings.NumUpDown({
+    name: "lineAngle_4",
+    displayName: "Category 4 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_5 = new formattingSettings.NumUpDown({
+    name: "lineAngle_5",
+    displayName: "Category 5 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_6 = new formattingSettings.NumUpDown({
+    name: "lineAngle_6",
+    displayName: "Category 6 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_7 = new formattingSettings.NumUpDown({
+    name: "lineAngle_7",
+    displayName: "Category 7 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_8 = new formattingSettings.NumUpDown({
+    name: "lineAngle_8",
+    displayName: "Category 8 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_9 = new formattingSettings.NumUpDown({
+    name: "lineAngle_9",
+    displayName: "Category 9 Angle (°)",
+    value: 0,
+  });
+
   // Vertical Position Controls
   verticalPositionMode = new formattingSettings.ItemDropdown({
     name: "verticalPositionMode",
@@ -572,6 +644,17 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
     this.lineLength_7,
     this.lineLength_8,
     this.lineLength_9,
+    this.lineAngleMode,
+    this.lineAngle_0,
+    this.lineAngle_1,
+    this.lineAngle_2,
+    this.lineAngle_3,
+    this.lineAngle_4,
+    this.lineAngle_5,
+    this.lineAngle_6,
+    this.lineAngle_7,
+    this.lineAngle_8,
+    this.lineAngle_9,
     this.verticalPositionMode,
     this.verticalOffset_0,
     this.verticalOffset_1,
@@ -670,6 +753,78 @@ class LabelTuningDrillCardSettings extends FormattingSettingsCard {
     name: "lineLength_9",
     displayName: "Category 9 Line Length",
     value: 20,
+  });
+
+  // Line Angle Controls
+  lineAngleMode = new formattingSettings.ItemDropdown({
+    name: "lineAngleMode",
+    displayName: "Line Angle Mode",
+    items: [
+      { displayName: "Auto", value: "auto" },
+      { displayName: "Individual", value: "individual" },
+    ],
+    value: { displayName: "Auto", value: "auto" },
+  });
+
+  // Individual angle controls (in degrees, -90 to +90)
+  lineAngle_0 = new formattingSettings.NumUpDown({
+    name: "lineAngle_0",
+    displayName: "Category 0 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_1 = new formattingSettings.NumUpDown({
+    name: "lineAngle_1",
+    displayName: "Category 1 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_2 = new formattingSettings.NumUpDown({
+    name: "lineAngle_2",
+    displayName: "Category 2 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_3 = new formattingSettings.NumUpDown({
+    name: "lineAngle_3",
+    displayName: "Category 3 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_4 = new formattingSettings.NumUpDown({
+    name: "lineAngle_4",
+    displayName: "Category 4 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_5 = new formattingSettings.NumUpDown({
+    name: "lineAngle_5",
+    displayName: "Category 5 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_6 = new formattingSettings.NumUpDown({
+    name: "lineAngle_6",
+    displayName: "Category 6 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_7 = new formattingSettings.NumUpDown({
+    name: "lineAngle_7",
+    displayName: "Category 7 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_8 = new formattingSettings.NumUpDown({
+    name: "lineAngle_8",
+    displayName: "Category 8 Angle (°)",
+    value: 0,
+  });
+
+  lineAngle_9 = new formattingSettings.NumUpDown({
+    name: "lineAngle_9",
+    displayName: "Category 9 Angle (°)",
+    value: 0,
   });
 
   // Vertical Position Controls
@@ -784,6 +939,17 @@ class LabelTuningDrillCardSettings extends FormattingSettingsCard {
     this.lineLength_7,
     this.lineLength_8,
     this.lineLength_9,
+    this.lineAngleMode,
+    this.lineAngle_0,
+    this.lineAngle_1,
+    this.lineAngle_2,
+    this.lineAngle_3,
+    this.lineAngle_4,
+    this.lineAngle_5,
+    this.lineAngle_6,
+    this.lineAngle_7,
+    this.lineAngle_8,
+    this.lineAngle_9,
     this.verticalPositionMode,
     this.verticalOffset_0,
     this.verticalOffset_1,

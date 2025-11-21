@@ -38,6 +38,11 @@ interface LineLengthConfig {
   categoryLengths: Record<string, number>;
 }
 
+interface LineAngleConfig {
+  mode: "auto" | "individual";
+  categoryAngles: Record<string, number>;
+}
+
 interface VerticalPositionConfig {
   mode: "auto" | "individual";
   categoryOffsets: Record<string, number>;
@@ -65,6 +70,7 @@ interface SpacingConfig {
 interface RenderConfig {
   radius: number;
   lineLengthConfig: LineLengthConfig;
+  lineAngleConfig: LineAngleConfig;
   verticalPositionConfig: VerticalPositionConfig;
   width: number;
   height: number;
@@ -100,7 +106,7 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean): void {
-    const { radius, lineLengthConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels } = config;
+    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
@@ -130,8 +136,8 @@ class DonutRenderer {
     // Solo renderizar líneas y labels si dataLabels están habilitados y en posición outside
     const isOutside = dataLabels.labelPlacement === "outside";
     if (dataLabels.show && isOutside) {
-      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, spacing);
-      this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, verticalPositionConfig, wrap, dataLabels, spacing);
+      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, spacing);
+      this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, wrap, dataLabels, spacing);
     } else if (dataLabels.show && !isOutside) {
       // Renderizar labels inside sin líneas
       this.renderLabelsInside(g, viewModel, pie, dataLabels);
@@ -216,11 +222,14 @@ class DonutRenderer {
     ];
 
     return [startPoint, midPoint, finalPoint];
-  }  private calculateTextPosition(helpers: GeometryHelpers, lineLength: number, category: string, verticalConfig: VerticalPositionConfig): [number, number] {
-    const { mid, direction, outerRadius } = helpers;
+  }  private calculateTextPosition(helpers: GeometryHelpers, lineLength: number, category: string, verticalConfig: VerticalPositionConfig, angleConfig: LineAngleConfig): [number, number] {
+    const { mid, outerRadius } = helpers;
     
-    // Extender radialmente desde el borde del slice
-    const angle = mid - Math.PI / 2;
+    // Obtener offset angular personalizado para esta categoría
+    const angleOffset = this.getLineAngleForCategory(category, angleConfig);
+    
+    // Extender radialmente desde el borde del slice con el ángulo ajustado
+    const angle = (mid - Math.PI / 2) + angleOffset;
     const extension = outerRadius + lineLength;
     const textX = Math.cos(angle) * extension;
     const textY = Math.sin(angle) * extension;
@@ -255,28 +264,28 @@ class DonutRenderer {
                      pie: d3.Pie<any, DonutDataPoint>, 
                      radius: number, 
                      lineLengthConfig: LineLengthConfig,
+                     lineAngleConfig: LineAngleConfig,
                      spacing: SpacingConfig): void {
     const pieData = pie(viewModel);
     
     pieData.forEach((d: d3.PieArcDatum<any>) => {
       const helpers = this.getGeometryHelpers(d, radius, spacing);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
-      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, { mode: 'auto', categoryOffsets: {} });
+      const lineAngle = this.getLineAngleForCategory(d.data.category, lineAngleConfig);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, { mode: 'auto', categoryOffsets: {} }, lineAngleConfig);
       
-      // Línea simple desde el borde del slice hasta donde va el texto
-      const angle = helpers.mid - Math.PI / 2;
-      const x1 = Math.cos(angle) * helpers.outerRadius;
-      const y1 = Math.sin(angle) * helpers.outerRadius;
-      const x2 = textX - (helpers.direction * 8);
-      const y2 = textY;
+      // Punto de inicio: siempre en el punto medio del slice (sin ajuste de ángulo)
+      const baseAngle = helpers.mid - Math.PI / 2;
+      const x1 = Math.cos(baseAngle) * helpers.outerRadius;
+      const y1 = Math.sin(baseAngle) * helpers.outerRadius;
       
       g.append("line")
         .attr("stroke", "#888")
         .attr("stroke-width", 1)
         .attr("x1", x1)
         .attr("y1", y1)
-        .attr("x2", x2)
-        .attr("y2", y2);
+        .attr("x2", textX)
+        .attr("y2", textY);
     });
   }
 
@@ -285,14 +294,15 @@ class DonutRenderer {
                       pie: d3.Pie<any, DonutDataPoint>, 
                       radius: number, 
                       lineLengthConfig: LineLengthConfig,
+                      lineAngleConfig: LineAngleConfig,
                       verticalPositionConfig: VerticalPositionConfig,
                       wrap: TextWrapMode,
                       dataLabels: DataLabelsConfig,
                       spacing: SpacingConfig): void {
     if (wrap === "wrap") {
-      this.renderWrappedLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels, spacing);
+      this.renderWrappedLabels(g, pie(viewModel), radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, dataLabels, spacing);
     } else {
-      this.renderSingleLabels(g, pie(viewModel), radius, lineLengthConfig, verticalPositionConfig, dataLabels, spacing);
+      this.renderSingleLabels(g, pie(viewModel), radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, dataLabels, spacing);
     }
   }
 
@@ -300,13 +310,14 @@ class DonutRenderer {
                             pieData: d3.PieArcDatum<DonutDataPoint>[],
                             radius: number,
                             lineLengthConfig: LineLengthConfig,
+                            lineAngleConfig: LineAngleConfig,
                             verticalPositionConfig: VerticalPositionConfig,
                             dataLabels: DataLabelsConfig,
                             spacing: SpacingConfig): void {
     pieData.forEach((d) => {
       const helpers = this.getGeometryHelpers(d, radius, spacing);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
-      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig, lineAngleConfig);
       
       const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
       const textAnchor = this.getTextAnchor(d, radius, "auto");
@@ -328,6 +339,7 @@ class DonutRenderer {
                              pieData: d3.PieArcDatum<DonutDataPoint>[],
                              radius: number,
                              lineLengthConfig: LineLengthConfig,
+                             lineAngleConfig: LineAngleConfig,
                              verticalPositionConfig: VerticalPositionConfig,
                              dataLabels: DataLabelsConfig,
                              spacing: SpacingConfig): void {
@@ -339,7 +351,7 @@ class DonutRenderer {
     const labelInfos = pieData.map((d) => {
       const helpers = this.getGeometryHelpers(d, radius, spacing);
       const lineLength = this.getLineLengthForCategory(d.data.category, lineLengthConfig);
-      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig);
+      const [textX, textY] = this.calculateTextPosition(helpers, lineLength, d.data.category, verticalPositionConfig, lineAngleConfig);
       const labelText = this.formatLabelText(d.data, dataLabels.showBlankAs, dataLabels);
       const textAnchor = this.getTextAnchor(d, radius, "auto");
       const absoluteTextX = centerX + textX;
@@ -366,10 +378,7 @@ class DonutRenderer {
     // Aplicar separación automática anti-colisión
     const adjustedLabels = labelInfos;
     
-    // Renderizar líneas simples para todos los labels
-    adjustedLabels.forEach((labelInfo) => {
-      this.renderNormalLine(g, labelInfo);
-    });
+    // Las líneas ya se renderizan en renderLines(), no duplicar aquí
     
     // Renderizar labels con posiciones ajustadas
     adjustedLabels.forEach((labelInfo) => {
@@ -841,6 +850,13 @@ class DonutRenderer {
       return config.categoryLengths[category];
     }
     return config.globalLength;
+  }
+
+  private getLineAngleForCategory(category: string, config: LineAngleConfig): number {
+    if (config.mode === "individual" && config.categoryAngles[category] !== undefined) {
+      return config.categoryAngles[category] * (Math.PI / 180); // Convertir grados a radianes
+    }
+    return 0; // Sin offset angular si está en modo auto
   }
 
   private getVerticalOffsetForCategory(category: string, config: VerticalPositionConfig): number {
@@ -1339,6 +1355,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const spacingConfig = this.getSpacingConfig(dataView);
     const radius = Math.min(options.viewport.width, options.viewport.height) / 2 - DONUT_CONFIG.MARGIN;
     const lineLengthConfig = this.getLineLengthConfig(dataView, viewModel, this.isDrilled);
+    const lineAngleConfig = this.getLineAngleConfig(dataView, viewModel, this.isDrilled);
     const verticalPositionConfig = this.getVerticalPositionConfig(dataView, viewModel, this.isDrilled);
     
     const dataLabelsConfig = this.getDataLabelsConfig(dataView, this.isDrilled);
@@ -1346,6 +1363,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const config: RenderConfig = {
       radius,
       lineLengthConfig,
+      lineAngleConfig,
       verticalPositionConfig,
       width: options.viewport.width,
       height: options.viewport.height,
@@ -1733,6 +1751,22 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     };
   }
 
+  private getLineAngleConfig(dataView: powerbi.DataView, viewModel: DonutDataPoint[], isDrilled: boolean): LineAngleConfig {
+    const mode = this.getLineAngleMode(dataView, isDrilled);
+    const categoryAngles: Record<string, number> = {};
+
+    if (mode === "individual") {
+      viewModel.forEach((d, index) => {
+        categoryAngles[d.category] = this.getCategoryLineAngle(dataView, index, isDrilled);
+      });
+    }
+
+    return {
+      mode,
+      categoryAngles
+    };
+  }
+
   private getVerticalPositionMode(dataView: powerbi.DataView, isDrilled: boolean): "auto" | "individual" {
     const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
     const mode = String(tuningCard.verticalPositionMode.value.value);
@@ -1748,6 +1782,23 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       return Math.max(-100, Math.min(100, value)); // Limitar entre -100 y +100
     }
     return 0; // Sin offset por defecto
+  }
+
+  private getLineAngleMode(dataView: powerbi.DataView, isDrilled: boolean): "auto" | "individual" {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const mode = String(tuningCard.lineAngleMode.value.value);
+    return (mode === "individual" ? "individual" : "auto");
+  }
+
+  private getCategoryLineAngle(dataView: powerbi.DataView, index: number, isDrilled: boolean): number {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const propertyName = `lineAngle_${index}` as keyof typeof tuningCard;
+    const control = tuningCard[propertyName] as any;
+    if (control && control.value !== undefined) {
+      const value = control.value;
+      return Math.max(-90, Math.min(90, value)); // Limitar entre -90° y +90°
+    }
+    return 0; // Sin ángulo por defecto
   }
 
   private getLineLengthMode(dataView: powerbi.DataView, isDrilled: boolean): LineLengthMode {

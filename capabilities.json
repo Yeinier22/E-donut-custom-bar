@@ -776,6 +776,25 @@
         "lineLength_7": { "type": { "numeric": true } },
         "lineLength_8": { "type": { "numeric": true } },
         "lineLength_9": { "type": { "numeric": true } },
+        "lineAngleMode": {
+          "displayName": "Line Angle Mode",
+          "type": {
+            "enumeration": [
+              { "displayName": "Auto", "value": "auto" },
+              { "displayName": "Individual", "value": "individual" }
+            ]
+          }
+        },
+        "lineAngle_0": { "type": { "numeric": true } },
+        "lineAngle_1": { "type": { "numeric": true } },
+        "lineAngle_2": { "type": { "numeric": true } },
+        "lineAngle_3": { "type": { "numeric": true } },
+        "lineAngle_4": { "type": { "numeric": true } },
+        "lineAngle_5": { "type": { "numeric": true } },
+        "lineAngle_6": { "type": { "numeric": true } },
+        "lineAngle_7": { "type": { "numeric": true } },
+        "lineAngle_8": { "type": { "numeric": true } },
+        "lineAngle_9": { "type": { "numeric": true } },
         "curveTension": {
           "displayName": "Curve Tension",
           "type": {
@@ -850,6 +869,25 @@
         "lineLength_7": { "type": { "numeric": true } },
         "lineLength_8": { "type": { "numeric": true } },
         "lineLength_9": { "type": { "numeric": true } },
+        "lineAngleMode": {
+          "displayName": "Line Angle Mode",
+          "type": {
+            "enumeration": [
+              { "displayName": "Auto", "value": "auto" },
+              { "displayName": "Individual", "value": "individual" }
+            ]
+          }
+        },
+        "lineAngle_0": { "type": { "numeric": true } },
+        "lineAngle_1": { "type": { "numeric": true } },
+        "lineAngle_2": { "type": { "numeric": true } },
+        "lineAngle_3": { "type": { "numeric": true } },
+        "lineAngle_4": { "type": { "numeric": true } },
+        "lineAngle_5": { "type": { "numeric": true } },
+        "lineAngle_6": { "type": { "numeric": true } },
+        "lineAngle_7": { "type": { "numeric": true } },
+        "lineAngle_8": { "type": { "numeric": true } },
+        "lineAngle_9": { "type": { "numeric": true } },
         "curveTension": {
           "displayName": "Curve Tension",
           "type": {
