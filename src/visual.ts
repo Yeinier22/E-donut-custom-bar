@@ -948,6 +948,9 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   private selectionManager: ISelectionManager;
   private categorySelectionIds: { [key: string]: ISelectionId[] } = {};
   private drillSelectionIds: { [key: string]: ISelectionId[] } = {};
+  
+  // Store last update options to force re-render on external selection changes
+  private lastUpdateOptions: powerbi.extensibility.visual.VisualUpdateOptions | undefined;
 
   constructor(options: powerbi.extensibility.visual.VisualConstructorOptions) {
     this.host = options.host;
@@ -1341,6 +1344,9 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
   }
 
   public update(options: powerbi.extensibility.visual.VisualUpdateOptions): void {
+    // Store options for potential forced re-renders from external selection changes
+    this.lastUpdateOptions = options;
+    
     const dataView = options.dataViews && options.dataViews[0];
     this.dataView = dataView;
     
@@ -1512,16 +1518,12 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     this.selectionManager.registerOnSelectCallback((selectionIds: ISelectionId[]) => {
       console.log("🔄 External selection change detected:", selectionIds ? selectionIds.length : 0, "IDs");
       
-      if (selectionIds && selectionIds.length > 0) {
-        console.log("📊 Visual responding to external selection changes");
-      } else {
-        console.log("🧹 External selections cleared - this visual's filter should now be removed");
-        // Cuando otros visuales limpian selecciones, asegurar que este visual también se limpie
-        this.ensureSelectionPropagation();
+      // CLAVE: Forzar re-render con las últimas opciones de update
+      // Esto asegura que el visual se actualice con los datos filtrados
+      if (this.lastUpdateOptions) {
+        console.log("🔄 Forcing visual refresh due to external selection change");
+        this.update(this.lastUpdateOptions);
       }
-      
-      // Aquí podrías agregar lógica para resaltar visualmente los elementos seleccionados
-      // basándose en las selecciones externas, si es necesario
     });
   }
 
@@ -1576,12 +1578,31 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const cat1Values = categorical.categories[0].values;
     const allValues = categorical.values[0].values;
     
+    // 🔍 CLAVE: Verificar si hay highlight values (filtrado desde otros visuales)
+    const highlightValues = categorical.values[0].highlights;
+    const hasHighlights = highlightValues && highlightValues.some(h => h !== null);
+    
+    console.log("📊 buildMainData - hasHighlights:", hasHighlights);
+    if (hasHighlights) {
+      console.log("🎯 Using highlight values from external filter");
+    }
+    
     // Aggregate by first category (same logic as ECharts version)
     const categoryTotals = new Map<any, number>();
     
     for (let i = 0; i < cat1Values.length; i++) {
       const category = cat1Values[i];
-      const rawValue = allValues[i];
+      
+      // Si hay highlights, solo usar los valores resaltados (filtrados)
+      const rawValue = hasHighlights && highlightValues[i] !== null 
+        ? highlightValues[i] 
+        : (!hasHighlights ? allValues[i] : null);
+      
+      // Si el valor es null debido a highlight, skip
+      if (rawValue === null && hasHighlights) {
+        continue;
+      }
+      
       const value = typeof rawValue === "number" ? rawValue : Number(rawValue);
       
       if (!isNaN(value) && isFinite(value)) {
@@ -1667,10 +1688,23 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const totals = new Map<any, number>();
 
     // Helper to add from a column source (exact ECharts logic)
-    const addFromSource = (src: any[]) => {
+    const addFromSource = (src: any[], highlights?: any[]) => {
+      const hasHighlights = highlights && highlights.some(h => h !== null);
+      
       for (const c2 of cat2Order) {
         let s = 0;
-        for (const i of idxs) if ((cat2 as any[])[i] === c2) s += toNumber(src[i]);
+        for (const i of idxs) {
+          if ((cat2 as any[])[i] === c2) {
+            // Si hay highlights, solo usar valores resaltados
+            if (hasHighlights) {
+              if (highlights[i] !== null) {
+                s += toNumber(highlights[i]);
+              }
+            } else {
+              s += toNumber(src[i]);
+            }
+          }
+        }
         totals.set(c2, (totals.get(c2) || 0) + s);
       }
     };
@@ -1679,11 +1713,24 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     if (Array.isArray(groups) && groups.length > 0) {
       const measureCount = groups[0]?.values?.length || 0;
       for (const g of groups) {
-        if (measureCount <= 1) addFromSource(g?.values?.[0]?.values || []);
-        else for (const mv of g.values || []) addFromSource(mv?.values || []);
+        if (measureCount <= 1) {
+          const values = g?.values?.[0]?.values || [];
+          const highlights = g?.values?.[0]?.highlights || [];
+          addFromSource(values, highlights);
+        } else {
+          for (const mv of g.values || []) {
+            const values = mv?.values || [];
+            const highlights = mv?.highlights || [];
+            addFromSource(values, highlights);
+          }
+        }
       }
     } else {
-      for (const mv of (valuesCols as any[]) || []) addFromSource(mv?.values || []);
+      for (const mv of (valuesCols as any[]) || []) {
+        const values = mv?.values || [];
+        const highlights = mv?.highlights || [];
+        addFromSource(values, highlights);
+      }
     }
 
     // Convert to DonutDataPoint format
