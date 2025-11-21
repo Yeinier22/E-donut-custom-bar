@@ -6,7 +6,7 @@
 
 import * as d3 from "d3";
 import powerbi from "powerbi-visuals-api";
-import { FormattingSettingsService } from "powerbi-visuals-utils-formattingmodel";
+import { FormattingSettingsService, formattingSettings } from "powerbi-visuals-utils-formattingmodel";
 import { VisualFormattingSettingsModel } from "./settings";
 import ISelectionManager = powerbi.extensibility.ISelectionManager;
 import ISelectionId = powerbi.visuals.ISelectionId;
@@ -105,7 +105,7 @@ class DonutRenderer {
     this.svg = svg;
   }
 
-  public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean): void {
+  public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean, colorMap?: Map<string, string>): void {
     const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels } = config;
     
     // Limpiar SVG
@@ -128,7 +128,16 @@ class DonutRenderer {
     const arc = d3.arc<d3.PieArcDatum<DonutDataPoint>>()
       .innerRadius(radius * (spacing.innerRadiusPercent / 100))
       .outerRadius(radius * ((spacing.innerRadiusPercent + spacing.ringWidthPercent) / 100));
-    const color = d3.scaleOrdinal(d3.schemeSet2);
+    
+    // Create color scale using custom colors or defaults
+    const defaultColors = ["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3"];
+    const color = (category: string): string => {
+      if (colorMap && colorMap.has(category)) {
+        return colorMap.get(category)!;
+      }
+      const index = viewModel.findIndex(d => d.category === category);
+      return defaultColors[index % defaultColors.length];
+    };
 
     // Renderizar componentes
     this.renderDonut(g, viewModel, pie, arc, color, onSliceClick);
@@ -244,7 +253,7 @@ class DonutRenderer {
                      viewModel: DonutDataPoint[], 
                      pie: d3.Pie<any, DonutDataPoint>, 
                      arc: d3.Arc<any, d3.PieArcDatum<DonutDataPoint>>,
-                     color: d3.ScaleOrdinal<string, string, never>,
+                     color: (category: string) => string,
                      onSliceClick?: (category: string, event?: MouseEvent) => void): void {
     g.selectAll("path")
       .data(pie(viewModel))
@@ -1435,8 +1444,11 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     // Get drill header configuration
     const showDrillHeader = this.formattingSettings.drillHeaderCard.show.value;
     
+    // Get color map for current mode
+    const colorMap = this.getColorMap(dataView, this.isDrilled);
+    
     // Renderizar
-    this.renderer.render(viewModel, config, onSliceClick, onBackClick, this.isDrilled, this.drillCategory, showDrillHeader);
+    this.renderer.render(viewModel, config, onSliceClick, onBackClick, this.isDrilled, this.drillCategory, showDrillHeader, colorMap);
     
     // 🎯 Configurar eventos para filtrado cruzado
     this.setupCrossFilteringEvents();
@@ -1471,6 +1483,33 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       // Aquí podrías agregar lógica para resaltar visualmente los elementos seleccionados
       // basándose en las selecciones externas, si es necesario
     });
+  }
+
+  private getColorMap(dataView: powerbi.DataView, isDrill: boolean): Map<string, string> {
+    const colorMap = new Map<string, string>();
+    
+    if (!dataView || !dataView.categorical || !dataView.categorical.categories) {
+      return colorMap;
+    }
+    
+    const categoryIndex = isDrill ? 1 : 0;
+    const categories = dataView.categorical.categories[categoryIndex];
+    if (!categories) return colorMap;
+    
+    const categoryValues = categories.values;
+    const categoryObjects = categories.objects;
+    
+    if (categoryObjects) {
+      for (let i = 0; i < categoryValues.length; i++) {
+        const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
+        if (categoryObjects[i] && categoryObjects[i]["dataPoint"] && categoryObjects[i]["dataPoint"]["fill"]) {
+          const colorObj = categoryObjects[i]["dataPoint"]["fill"] as any;
+          colorMap.set(categoryName, colorObj.solid.color);
+        }
+      }
+    }
+    
+    return colorMap;
   }
 
   private createViewModel(dataView: powerbi.DataView): DonutDataPoint[] {
@@ -2013,6 +2052,78 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     this.formattingSettings.dataLabelsCard.valueDecimals.visible = dataLabelsEnabled;
     this.formattingSettings.dataLabelsCard.valueType.visible = dataLabelsEnabled;
     
+    // Populate data colors dynamically for main categories
+    this.formattingSettings.dataPointCard.slices = [];
+    if (this.baseCategories && this.baseCategories.length > 0) {
+      this.baseCategories.forEach((category, index) => {
+        const defaultColor = this.getDefaultColorForCategory(index);
+        const colorValue = this.getCategoryColor(category, false) || defaultColor;
+        
+        const colorPicker = new formattingSettings.ColorPicker({
+          name: "fill",
+          displayName: String(category),
+          value: { value: colorValue },
+          selector: this.host.createSelectionIdBuilder()
+            .withCategory(this.dataView.categorical.categories[0], index)
+            .createSelectionId()
+            .getSelector()
+        });
+        this.formattingSettings.dataPointCard.slices.push(colorPicker);
+      });
+    }
+    
+    // Populate data colors dynamically for drill categories
+    this.formattingSettings.dataPointDrillCard.slices = [];
+    if (this.isDrilled && this.allDrillCategoryNames && this.allDrillCategoryNames.length > 0) {
+      this.allDrillCategoryNames.forEach((category, index) => {
+        const defaultColor = this.getDefaultColorForCategory(index);
+        const colorValue = this.getCategoryColor(category, true) || defaultColor;
+        
+        const colorPicker = new formattingSettings.ColorPicker({
+          name: "fill",
+          displayName: category,
+          value: { value: colorValue },
+          selector: this.host.createSelectionIdBuilder()
+            .withCategory(this.dataView.categorical.categories[1], index)
+            .createSelectionId()
+            .getSelector()
+        });
+        this.formattingSettings.dataPointDrillCard.slices.push(colorPicker);
+      });
+    }
+    
     return this.formattingSettingsService.buildFormattingModel(this.formattingSettings);
+  }
+  
+  private getDefaultColorForCategory(index: number): string {
+    // d3.schemeSet2 colors
+    const defaultColors = ["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3"];
+    return defaultColors[index % defaultColors.length];
+  }
+  
+  private getCategoryColor(category: string, isDrill: boolean): string | null {
+    if (!this.dataView || !this.dataView.categorical || !this.dataView.categorical.categories) {
+      return null;
+    }
+    
+    const categoryIndex = isDrill ? 1 : 0;
+    const categories = this.dataView.categorical.categories[categoryIndex];
+    if (!categories) return null;
+    
+    const categoryValues = categories.values;
+    const categoryObjects = categories.objects;
+    
+    if (!categoryObjects) return null;
+    
+    for (let i = 0; i < categoryValues.length; i++) {
+      if (categoryValues[i] === category && categoryObjects[i]) {
+        const obj = categoryObjects[i];
+        if (obj && obj["dataPoint"] && obj["dataPoint"]["fill"]) {
+          return (obj["dataPoint"]["fill"] as any).solid.color;
+        }
+      }
+    }
+    
+    return null;
   }
 }

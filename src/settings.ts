@@ -163,15 +163,18 @@ class DataLabelsDrillCardSettings extends FormattingSettingsCard {
  * Data Point Formatting Card
  */
 class DataPointCardSettings extends FormattingSettingsCard {
-  fill = new formattingSettings.ColorPicker({
-    name: "fill",
-    displayName: "Color",
-    value: { value: "" },
-  });
-
   name: string = "dataPoint";
   displayName: string = "Data colors";
-  slices: Array<FormattingSettingsSlice> = [this.fill];
+  slices: Array<FormattingSettingsSlice> = [];
+}
+
+/**
+ * Data Point Drill Formatting Card
+ */
+class DataPointDrillCardSettings extends FormattingSettingsCard {
+  name: string = "dataPointDrill";
+  displayName: string = "Data colors (Drill)";
+  slices: Array<FormattingSettingsSlice> = [];
 }
 
 /**
@@ -975,6 +978,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
   dataLabelsCard = new DataLabelsCardSettings();
   dataLabelsDrillCard = new DataLabelsDrillCardSettings();
   dataPointCard = new DataPointCardSettings();
+  dataPointDrillCard = new DataPointDrillCardSettings();
   drillHeaderCard = new DrillHeaderCardSettings();
   hoverStyleCard = new HoverStyleCardSettings();
   selectionStyleCard = new SelectionStyleCardSettings();
@@ -987,6 +991,7 @@ export class VisualFormattingSettingsModel extends FormattingSettingsModel {
     this.dataLabelsCard,
     this.dataLabelsDrillCard,
     this.dataPointCard,
+    this.dataPointDrillCard,
     this.drillHeaderCard,
     this.hoverStyleCard,
     this.selectionStyleCard,
