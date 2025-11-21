@@ -132,15 +132,13 @@ class DonutRenderer {
   }
 
   private calculateTextPosition(helpers: GeometryHelpers, lineLength: number): [number, number] {
-    const { mid, direction, midRadius } = helpers;
+    const { mid, outerRadius } = helpers;
     
-    const midPoint = [
-      Math.cos(mid - Math.PI / 2) * midRadius,
-      Math.sin(mid - Math.PI / 2) * midRadius
-    ];
-    
-    const textX = midPoint[0] + (lineLength * direction) + (DONUT_CONFIG.TEXT_SPACING * direction);
-    const textY = midPoint[1];
+    // Extender radialmente desde el borde del slice
+    const angle = mid - Math.PI / 2;
+    const extension = outerRadius + lineLength;
+    const textX = Math.cos(angle) * extension;
+    const textY = Math.sin(angle) * extension;
     
     return [textX, textY];
   }
