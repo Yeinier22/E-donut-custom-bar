@@ -1493,6 +1493,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     }
     
     const categoryIndex = isDrill ? 1 : 0;
+    const objectName = isDrill ? "dataPointDrill" : "dataPoint";
     const categories = dataView.categorical.categories[categoryIndex];
     if (!categories) return colorMap;
     
@@ -1502,8 +1503,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     if (categoryObjects) {
       for (let i = 0; i < categoryValues.length; i++) {
         const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
-        if (categoryObjects[i] && categoryObjects[i]["dataPoint"] && categoryObjects[i]["dataPoint"]["fill"]) {
-          const colorObj = categoryObjects[i]["dataPoint"]["fill"] as any;
+        if (categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
+          const colorObj = categoryObjects[i][objectName]["fill"] as any;
           colorMap.set(categoryName, colorObj.solid.color);
         }
       }
@@ -2074,17 +2075,33 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     
     // Populate data colors dynamically for drill categories
     this.formattingSettings.dataPointDrillCard.slices = [];
-    if (this.isDrilled && this.allDrillCategoryNames && this.allDrillCategoryNames.length > 0) {
-      this.allDrillCategoryNames.forEach((category, index) => {
-        const defaultColor = this.getDefaultColorForCategory(index);
-        const colorValue = this.getCategoryColor(category, true) || defaultColor;
+    if (this.dataView && this.dataView.categorical && this.dataView.categorical.categories.length > 1) {
+      const cat2Values = this.dataView.categorical.categories[1].values;
+      const uniqueDrillCategories: any[] = [];
+      const seen = new Set();
+      
+      // Get unique categories in order
+      for (const cat of cat2Values) {
+        if (!seen.has(cat)) {
+          seen.add(cat);
+          uniqueDrillCategories.push(cat);
+        }
+      }
+      
+      uniqueDrillCategories.forEach((category, uniqueIndex) => {
+        const categoryName = category == null ? "(Blank)" : String(category);
+        const defaultColor = this.getDefaultColorForCategory(uniqueIndex);
+        const colorValue = this.getCategoryColor(categoryName, true) || defaultColor;
+        
+        // Find the actual index in cat2Values for this category
+        const actualIndex = cat2Values.indexOf(category);
         
         const colorPicker = new formattingSettings.ColorPicker({
           name: "fill",
-          displayName: category,
+          displayName: categoryName,
           value: { value: colorValue },
           selector: this.host.createSelectionIdBuilder()
-            .withCategory(this.dataView.categorical.categories[1], index)
+            .withCategory(this.dataView.categorical.categories[1], actualIndex)
             .createSelectionId()
             .getSelector()
         });
@@ -2107,6 +2124,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     }
     
     const categoryIndex = isDrill ? 1 : 0;
+    const objectName = isDrill ? "dataPointDrill" : "dataPoint";
     const categories = this.dataView.categorical.categories[categoryIndex];
     if (!categories) return null;
     
@@ -2118,8 +2136,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     for (let i = 0; i < categoryValues.length; i++) {
       if (categoryValues[i] === category && categoryObjects[i]) {
         const obj = categoryObjects[i];
-        if (obj && obj["dataPoint"] && obj["dataPoint"]["fill"]) {
-          return (obj["dataPoint"]["fill"] as any).solid.color;
+        if (obj && obj[objectName] && obj[objectName]["fill"]) {
+          return (obj[objectName]["fill"] as any).solid.color;
         }
       }
     }
