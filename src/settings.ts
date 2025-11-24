@@ -404,6 +404,18 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
     value: 0.4,
   });
 
+  lineWidth = new formattingSettings.NumUpDown({
+    name: "lineWidth",
+    displayName: "Line Width",
+    value: 1,
+  });
+
+  lineColor = new formattingSettings.ColorPicker({
+    name: "lineColor",
+    displayName: "Line Color",
+    value: { value: "#888888" },
+  });
+
   lineLengthMode = new formattingSettings.ItemDropdown({
     name: "lineLengthMode",
     displayName: "Line Length Mode",
@@ -654,6 +666,8 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
   slices: Array<FormattingSettingsSlice> = [
     this.lineStyle,
     this.curveFactor,
+    this.lineWidth,
+    this.lineColor,
     this.lineLengthMode,
     this.lineLength,
     this.lineLength_0,
@@ -715,6 +729,18 @@ class LabelTuningDrillCardSettings extends FormattingSettingsCard {
     name: "curveFactor",
     displayName: "Curve Intensity",
     value: 0.4,
+  });
+
+  lineWidth = new formattingSettings.NumUpDown({
+    name: "lineWidth",
+    displayName: "Line Width",
+    value: 1,
+  });
+
+  lineColor = new formattingSettings.ColorPicker({
+    name: "lineColor",
+    displayName: "Line Color",
+    value: { value: "#888888" },
   });
 
   lineLengthMode = new formattingSettings.ItemDropdown({
@@ -967,6 +993,9 @@ class LabelTuningDrillCardSettings extends FormattingSettingsCard {
   displayName: string = "Label & Line Tuning (Drill)";
   slices: Array<FormattingSettingsSlice> = [
     this.lineStyle,
+    this.curveFactor,
+    this.lineWidth,
+    this.lineColor,
     this.lineLengthMode,
     this.lineLength,
     this.lineLength_0,

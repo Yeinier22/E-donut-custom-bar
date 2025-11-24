@@ -79,6 +79,8 @@ interface RenderConfig {
   dataLabels: DataLabelsConfig;
   lineStyle: string;
   curveFactor: number;
+  lineWidth: number;
+  lineColor: string;
 }
 
 interface DataLabelsConfig {
@@ -108,7 +110,7 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean, colorMap?: Map<string, string>): void {
-    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels, lineStyle, curveFactor } = config;
+    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels, lineStyle, curveFactor, lineWidth, lineColor } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
@@ -147,7 +149,7 @@ class DonutRenderer {
     // Solo renderizar líneas y labels si dataLabels están habilitados y en posición outside
     const isOutside = dataLabels.labelPlacement === "outside";
     if (dataLabels.show && isOutside) {
-      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, spacing, lineStyle, curveFactor);
+      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, spacing, lineStyle, curveFactor, lineWidth, lineColor);
       this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, wrap, dataLabels, spacing);
     } else if (dataLabels.show && !isOutside) {
       // Renderizar labels inside sin líneas
@@ -288,7 +290,9 @@ class DonutRenderer {
                      lineAngleConfig: LineAngleConfig,
                      spacing: SpacingConfig,
                      lineStyle: string = "straight",
-                     curveFactor: number = 0.4): void {
+                     curveFactor: number = 0.4,
+                     lineWidth: number = 1,
+                     lineColor: string = "#888888"): void {
     const pieData = pie(viewModel);
     
     pieData.forEach((d: d3.PieArcDatum<any>) => {
@@ -324,14 +328,14 @@ class DonutRenderer {
         
         g.append("path")
           .attr("d", pathData)
-          .attr("stroke", "#888")
-          .attr("stroke-width", 1)
+          .attr("stroke", lineColor)
+          .attr("stroke-width", lineWidth)
           .attr("fill", "none");
       } else {
         // Línea recta (comportamiento original)
         g.append("line")
-          .attr("stroke", "#888")
-          .attr("stroke-width", 1)
+          .attr("stroke", lineColor)
+          .attr("stroke-width", lineWidth)
           .attr("x1", x1)
           .attr("y1", y1)
           .attr("x2", textX)
@@ -1418,6 +1422,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const dataLabelsConfig = this.getDataLabelsConfig(dataView, this.isDrilled);
     const lineStyle = this.getLineStyle(dataView, this.isDrilled);
     const curveFactor = this.getCurveFactor(dataView, this.isDrilled);
+    const lineWidth = this.getLineWidth(dataView, this.isDrilled);
+    const lineColor = this.getLineColor(dataView, this.isDrilled);
     
     const config: RenderConfig = {
       radius,
@@ -1430,7 +1436,9 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       spacing: spacingConfig,
       dataLabels: dataLabelsConfig,
       lineStyle,
-      curveFactor
+      curveFactor,
+      lineWidth,
+      lineColor
     };
 
     // Save base state if not drilled (like ECharts version)
@@ -2047,6 +2055,17 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
     const value = tuningCard.curveFactor.value;
     return typeof value === 'number' && !isNaN(value) ? value : 0.4;
+  }
+
+  private getLineWidth(dataView: powerbi.DataView, isDrilled: boolean): number {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const value = tuningCard.lineWidth.value;
+    return typeof value === 'number' && !isNaN(value) ? Math.max(0.5, Math.min(10, value)) : 1;
+  }
+
+  private getLineColor(dataView: powerbi.DataView, isDrilled: boolean): string {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    return tuningCard.lineColor.value.value || "#888888";
   }
 
 

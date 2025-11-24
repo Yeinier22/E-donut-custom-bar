@@ -770,6 +770,22 @@
             "numeric": true
           }
         },
+        "lineWidth": {
+          "displayName": "Line Width",
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineColor": {
+          "displayName": "Line Color",
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
         "lineLengthMode": {
           "displayName": "Line Length Mode",
           "type": {
@@ -876,6 +892,22 @@
           "displayName": "Curve Intensity",
           "type": {
             "numeric": true
+          }
+        },
+        "lineWidth": {
+          "displayName": "Line Width",
+          "type": {
+            "numeric": true
+          }
+        },
+        "lineColor": {
+          "displayName": "Line Color",
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
           }
         },
         "lineLengthMode": {
