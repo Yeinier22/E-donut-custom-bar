@@ -2026,6 +2026,20 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const dataLabelsCard = this.formattingSettings.dataLabelsCard;
     const drillCard = this.formattingSettings.dataLabelsDrillCard;
     
+    // Parse font style
+    const fontStyleValue = String(dataLabelsCard.fontStyle.value.value);
+    let fontStyle = "normal";
+    let fontWeight = "normal";
+    
+    if (fontStyleValue === "bold") {
+      fontWeight = "bold";
+    } else if (fontStyleValue === "italic") {
+      fontStyle = "italic";
+    } else if (fontStyleValue === "bold-italic") {
+      fontStyle = "italic";
+      fontWeight = "bold";
+    }
+    
     return {
       show: dataLabelsCard.show.value,
       labelPlacement: String(dataLabelsCard.labelPlacement.value.value),
@@ -2033,8 +2047,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       color: dataLabelsCard.color.value.value,
       fontFamily: dataLabelsCard.fontFamily.value,
       fontSize: dataLabelsCard.fontSize.value,
-      fontStyle: "normal",
-      fontWeight: "normal",  
+      fontStyle: fontStyle,
+      fontWeight: fontWeight,  
       opacity: 1,
       showBlankAs: "",
       // Drill-specific formatting (if in drill mode, use drill values for number formatting)

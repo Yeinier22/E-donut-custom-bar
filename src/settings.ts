@@ -49,6 +49,18 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
     value: 11,
   });
 
+  fontStyle = new formattingSettings.ItemDropdown({
+    name: "fontStyle",
+    displayName: "Font Style",
+    items: [
+      { displayName: "Regular", value: "regular" },
+      { displayName: "Bold", value: "bold" },
+      { displayName: "Italic", value: "italic" },
+      { displayName: "Bold and italic", value: "bold-italic" },
+    ],
+    value: { displayName: "Regular", value: "regular" },
+  });
+
   displayUnit = new formattingSettings.ItemDropdown({
     name: "displayUnit",
     displayName: "Display units",
@@ -100,6 +112,7 @@ class DataLabelsCardSettings extends FormattingSettingsCard {
     this.placementMode,
     this.fontFamily,
     this.fontSize,
+    this.fontStyle,
     this.color,
     this.displayUnit,
     this.valueDecimals,

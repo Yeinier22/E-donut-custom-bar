@@ -252,8 +252,8 @@
           "type": {
             "enumeration": [
               {
-                "displayName": "Normal",
-                "value": "normal"
+                "displayName": "Regular",
+                "value": "regular"
               },
               {
                 "displayName": "Bold",
@@ -262,6 +262,10 @@
               {
                 "displayName": "Italic",
                 "value": "italic"
+              },
+              {
+                "displayName": "Bold and italic",
+                "value": "bold-italic"
               }
             ]
           }
