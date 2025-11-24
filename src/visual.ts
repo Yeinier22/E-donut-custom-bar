@@ -78,6 +78,7 @@ interface RenderConfig {
   spacing: SpacingConfig;
   dataLabels: DataLabelsConfig;
   lineStyle: string;
+  curveFactor: number;
 }
 
 interface DataLabelsConfig {
@@ -107,7 +108,7 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean, colorMap?: Map<string, string>): void {
-    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels, lineStyle } = config;
+    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels, lineStyle, curveFactor } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
@@ -146,7 +147,7 @@ class DonutRenderer {
     // Solo renderizar líneas y labels si dataLabels están habilitados y en posición outside
     const isOutside = dataLabels.labelPlacement === "outside";
     if (dataLabels.show && isOutside) {
-      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, spacing, lineStyle);
+      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, spacing, lineStyle, curveFactor);
       this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, wrap, dataLabels, spacing);
     } else if (dataLabels.show && !isOutside) {
       // Renderizar labels inside sin líneas
@@ -286,7 +287,8 @@ class DonutRenderer {
                      lineLengthConfig: LineLengthConfig,
                      lineAngleConfig: LineAngleConfig,
                      spacing: SpacingConfig,
-                     lineStyle: string = "straight"): void {
+                     lineStyle: string = "straight",
+                     curveFactor: number = 0.4): void {
     const pieData = pie(viewModel);
     
     pieData.forEach((d: d3.PieArcDatum<any>) => {
@@ -314,9 +316,9 @@ class DonutRenderer {
         const perpLength = Math.sqrt(perpX * perpX + perpY * perpY);
         
         // Desplazar el punto de control perpendicular a la línea (hacia afuera)
-        const curveFactor = lineLength * 0.4; // Factor de curvatura
-        const controlX = midPointX + (perpX / perpLength) * curveFactor;
-        const controlY = midPointY + (perpY / perpLength) * curveFactor;
+        const curveIntensity = lineLength * curveFactor; // Usar el factor de curvatura del usuario
+        const controlX = midPointX + (perpX / perpLength) * curveIntensity;
+        const controlY = midPointY + (perpY / perpLength) * curveIntensity;
         
         const pathData = `M ${x1},${y1} Q ${controlX},${controlY} ${textX},${textY}`;
         
@@ -1415,6 +1417,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     
     const dataLabelsConfig = this.getDataLabelsConfig(dataView, this.isDrilled);
     const lineStyle = this.getLineStyle(dataView, this.isDrilled);
+    const curveFactor = this.getCurveFactor(dataView, this.isDrilled);
     
     const config: RenderConfig = {
       radius,
@@ -1426,7 +1429,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       wrap: DONUT_CONFIG.DEFAULT_WRAP,
       spacing: spacingConfig,
       dataLabels: dataLabelsConfig,
-      lineStyle
+      lineStyle,
+      curveFactor
     };
 
     // Save base state if not drilled (like ECharts version)
@@ -2039,6 +2043,12 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     return String(tuningCard.lineStyle.value.value);
   }
 
+  private getCurveFactor(dataView: powerbi.DataView, isDrilled: boolean): number {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    const value = tuningCard.curveFactor.value;
+    return typeof value === 'number' && !isNaN(value) ? value : 0.4;
+  }
+
 
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
@@ -2054,9 +2064,11 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     // Actualizar visibilidad de slices según el modo
     const isIndividualMode = this.formattingSettings.labelTuningCard.lineLengthMode.value.value === "individual";
     const isVerticalIndividualMode = this.formattingSettings.labelTuningCard.verticalPositionMode.value.value === "individual";
+    const isCurvedStyle = this.formattingSettings.labelTuningCard.lineStyle.value.value === "curved";
     
     // Controlar visibilidad de configuraciones individuales de línea
     this.formattingSettings.labelTuningCard.lineLength.visible = !isIndividualMode;
+    this.formattingSettings.labelTuningCard.curveFactor.visible = isCurvedStyle;
     
     // Configurar slices individuales de línea con nombres de categorías si están disponibles
     const individualSlices = [
@@ -2108,9 +2120,11 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     // Actualizar visibilidad de slices según el modo para drill
     const isDrillIndividualMode = this.formattingSettings.labelTuningDrillCard.lineLengthMode.value.value === "individual";
     const isDrillVerticalIndividualMode = this.formattingSettings.labelTuningDrillCard.verticalPositionMode.value.value === "individual";
+    const isDrillCurvedStyle = this.formattingSettings.labelTuningDrillCard.lineStyle.value.value === "curved";
     
     // Controlar visibilidad de configuraciones individuales de línea para drill
     this.formattingSettings.labelTuningDrillCard.lineLength.visible = !isDrillIndividualMode;
+    this.formattingSettings.labelTuningDrillCard.curveFactor.visible = isDrillCurvedStyle;
     
     // Configurar slices individuales de línea con nombres de categorías de drill si están disponibles
     const drillIndividualSlices = [

@@ -764,6 +764,12 @@
             ]
           }
         },
+        "curveFactor": {
+          "displayName": "Curve Intensity",
+          "type": {
+            "numeric": true
+          }
+        },
         "lineLengthMode": {
           "displayName": "Line Length Mode",
           "type": {
@@ -864,6 +870,12 @@
               { "displayName": "Straight", "value": "straight" },
               { "displayName": "Curved", "value": "curved" }
             ]
+          }
+        },
+        "curveFactor": {
+          "displayName": "Curve Intensity",
+          "type": {
+            "numeric": true
           }
         },
         "lineLengthMode": {

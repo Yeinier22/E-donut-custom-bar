@@ -398,6 +398,12 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
     value: { displayName: "Straight", value: "straight" },
   });
 
+  curveFactor = new formattingSettings.NumUpDown({
+    name: "curveFactor",
+    displayName: "Curve Intensity",
+    value: 0.4,
+  });
+
   lineLengthMode = new formattingSettings.ItemDropdown({
     name: "lineLengthMode",
     displayName: "Line Length Mode",
@@ -647,6 +653,7 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
   displayName: string = "Label & Line Tuning";
   slices: Array<FormattingSettingsSlice> = [
     this.lineStyle,
+    this.curveFactor,
     this.lineLengthMode,
     this.lineLength,
     this.lineLength_0,
@@ -702,6 +709,12 @@ class LabelTuningDrillCardSettings extends FormattingSettingsCard {
       { displayName: "Curved", value: "curved" },
     ],
     value: { displayName: "Straight", value: "straight" },
+  });
+
+  curveFactor = new formattingSettings.NumUpDown({
+    name: "curveFactor",
+    displayName: "Curve Intensity",
+    value: 0.4,
   });
 
   lineLengthMode = new formattingSettings.ItemDropdown({
