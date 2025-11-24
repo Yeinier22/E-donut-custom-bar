@@ -81,6 +81,15 @@ interface RenderConfig {
   curveFactor: number;
   lineWidth: number;
   lineColor: string;
+  hoverStyle: HoverStyleConfig;
+}
+
+interface HoverStyleConfig {
+  mode: string;
+  color: string;
+  opacity: number;
+  borderColor: string;
+  borderWidth: number;
 }
 
 interface DataLabelsConfig {
@@ -110,7 +119,7 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean, colorMap?: Map<string, string>): void {
-    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels, lineStyle, curveFactor, lineWidth, lineColor } = config;
+    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels, lineStyle, curveFactor, lineWidth, lineColor, hoverStyle } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
@@ -144,7 +153,7 @@ class DonutRenderer {
     };
 
     // Renderizar componentes
-    this.renderDonut(g, viewModel, pie, arc, color, onSliceClick);
+    this.renderDonut(g, viewModel, pie, arc, color, hoverStyle, onSliceClick);
     
     // Solo renderizar líneas y labels si dataLabels están habilitados y en posición outside
     const isOutside = dataLabels.labelPlacement === "outside";
@@ -265,7 +274,16 @@ class DonutRenderer {
                      pie: d3.Pie<any, DonutDataPoint>, 
                      arc: d3.Arc<any, d3.PieArcDatum<DonutDataPoint>>,
                      color: (category: string) => string,
+                     hoverStyle: HoverStyleConfig,
                      onSliceClick?: (category: string, event?: MouseEvent) => void): void {
+    
+    // Get hover style settings
+    const hoverMode = hoverStyle.mode;
+    const hoverColor = hoverStyle.color;
+    const hoverOpacity = hoverStyle.opacity;
+    const borderColor = hoverStyle.borderColor;
+    const borderWidth = hoverStyle.borderWidth;
+    
     g.selectAll("path")
       .data(pie(viewModel))
       .enter()
@@ -275,6 +293,34 @@ class DonutRenderer {
       .style("stroke", "#fff")
       .style("stroke-width", "2px")
       .style("cursor", onSliceClick ? "pointer" : "default")
+      .on("mouseover", function(d: any) {
+        const selection = d3.select(this);
+        const transition = selection.transition().duration(200);
+        
+        if (hoverMode === "opacityOnly") {
+          // Solo cambiar opacidad, mantener color original
+          transition
+            .style("opacity", hoverOpacity)
+            .style("stroke", borderColor)
+            .style("stroke-width", borderWidth + "px");
+        } else {
+          // Cambiar color (modo por defecto)
+          transition
+            .style("fill", hoverColor)
+            .style("opacity", hoverOpacity)
+            .style("stroke", borderColor)
+            .style("stroke-width", borderWidth + "px");
+        }
+      })
+      .on("mouseout", function(d: any) {
+        d3.select(this)
+          .transition()
+          .duration(200)
+          .style("fill", color(d.data.category))
+          .style("opacity", 1)
+          .style("stroke", "#fff")
+          .style("stroke-width", "2px");
+      })
       .on("click", onSliceClick ? function(d: any) {
         // Pasar tanto los datos como el evento del mouse
         const mouseEvent = d3.event as MouseEvent;
@@ -1424,6 +1470,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const curveFactor = this.getCurveFactor(dataView, this.isDrilled);
     const lineWidth = this.getLineWidth(dataView, this.isDrilled);
     const lineColor = this.getLineColor(dataView, this.isDrilled);
+    const hoverStyleConfig = this.getHoverStyleConfig(dataView);
     
     const config: RenderConfig = {
       radius,
@@ -1438,7 +1485,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       lineStyle,
       curveFactor,
       lineWidth,
-      lineColor
+      lineColor,
+      hoverStyle: hoverStyleConfig
     };
 
     // Save base state if not drilled (like ECharts version)
@@ -2082,6 +2130,17 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     return tuningCard.lineColor.value.value || "#888888";
   }
 
+  private getHoverStyleConfig(dataView: powerbi.DataView): HoverStyleConfig {
+    const hoverCard = this.formattingSettings.hoverStyleCard;
+    return {
+      mode: String(hoverCard.hoverMode.value.value) || "changeColor",
+      color: hoverCard.color.value.value || "#FFD700",
+      opacity: (hoverCard.opacity.value || 80) / 100,
+      borderColor: hoverCard.borderColor.value.value || "#333333",
+      borderWidth: hoverCard.borderWidth.value || 2
+    };
+  }
+
 
 
   public getFormattingModel(): powerbi.visuals.FormattingModel {
@@ -2098,10 +2157,14 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const isIndividualMode = this.formattingSettings.labelTuningCard.lineLengthMode.value.value === "individual";
     const isVerticalIndividualMode = this.formattingSettings.labelTuningCard.verticalPositionMode.value.value === "individual";
     const isCurvedStyle = this.formattingSettings.labelTuningCard.lineStyle.value.value === "curved";
+    const isOpacityOnlyMode = this.formattingSettings.hoverStyleCard.hoverMode.value.value === "opacityOnly";
     
     // Controlar visibilidad de configuraciones individuales de línea
     this.formattingSettings.labelTuningCard.lineLength.visible = !isIndividualMode;
     this.formattingSettings.labelTuningCard.curveFactor.visible = isCurvedStyle;
+    
+    // Controlar visibilidad del color en hover style
+    this.formattingSettings.hoverStyleCard.color.visible = !isOpacityOnlyMode;
     
     // Configurar slices individuales de línea con nombres de categorías si están disponibles
     const individualSlices = [

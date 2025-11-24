@@ -62,10 +62,25 @@
   ],
   "supportsHighlight": true,
   "supportsMultiVisualSelection": true,
+  "sorting": {
+    "default": {}
+  },
+  "drilldown": {
+    "roles": ["category"]
+  },
   "objects": {
     "hoverStyle": {
       "displayName": "Hover Style",
       "properties": {
+        "hoverMode": {
+          "displayName": "Hover Mode",
+          "type": {
+            "enumeration": [
+              { "displayName": "Change Color", "value": "changeColor" },
+              { "displayName": "Change Opacity Only", "value": "opacityOnly" }
+            ]
+          }
+        },
         "color": {
           "displayName": "Hover color",
           "type": {

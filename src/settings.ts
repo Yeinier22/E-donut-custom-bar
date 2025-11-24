@@ -209,6 +209,16 @@ class DrillHeaderCardSettings extends FormattingSettingsCard {
  * Hover Style Formatting Card
  */
 class HoverStyleCardSettings extends FormattingSettingsCard {
+  hoverMode = new formattingSettings.ItemDropdown({
+    name: "hoverMode",
+    displayName: "Hover Mode",
+    items: [
+      { displayName: "Change Color", value: "changeColor" },
+      { displayName: "Change Opacity Only", value: "opacityOnly" },
+    ],
+    value: { displayName: "Change Color", value: "changeColor" },
+  });
+
   color = new formattingSettings.ColorPicker({
     name: "color",
     displayName: "Hover color",
@@ -277,6 +287,7 @@ class HoverStyleCardSettings extends FormattingSettingsCard {
   name: string = "hoverStyle";
   displayName: string = "Hover Style";
   slices: Array<FormattingSettingsSlice> = [
+    this.hoverMode,
     this.color,
     this.opacity,
     this.fillOpacity,
