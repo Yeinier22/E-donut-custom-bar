@@ -90,6 +90,8 @@ interface HoverStyleConfig {
   opacity: number;
   borderColor: string;
   borderWidth: number;
+  lineColor: string;
+  lineWidth: number;
 }
 
 interface DataLabelsConfig {
@@ -283,6 +285,8 @@ class DonutRenderer {
     const hoverOpacity = hoverStyle.opacity;
     const borderColor = hoverStyle.borderColor;
     const borderWidth = hoverStyle.borderWidth;
+    const lineHoverColor = hoverStyle.lineColor;
+    const lineHoverWidth = hoverStyle.lineWidth;
     
     g.selectAll("path")
       .data(pie(viewModel))
@@ -290,13 +294,16 @@ class DonutRenderer {
       .append("path")
       .attr("d", arc)
       .attr("fill", (d: any) => color(d.data.category))
+      .attr("class", (d: any) => `slice-${d.data.category.replace(/\s+/g, '-')}`)
       .style("stroke", "#fff")
       .style("stroke-width", "2px")
       .style("cursor", onSliceClick ? "pointer" : "default")
       .on("mouseover", function(d: any) {
         const selection = d3.select(this);
         const transition = selection.transition().duration(200);
+        const category = d.data.category.replace(/\s+/g, '-');
         
+        // Aplicar hover al slice
         if (hoverMode === "opacityOnly") {
           // Solo cambiar opacidad, mantener color original
           transition
@@ -311,8 +318,19 @@ class DonutRenderer {
             .style("stroke", borderColor)
             .style("stroke-width", borderWidth + "px");
         }
+        
+        // Aplicar hover a la línea correspondiente con sus propios valores
+        g.selectAll(`.line-${category}`)
+          .transition()
+          .duration(200)
+          .style("stroke", lineHoverColor)
+          .style("stroke-width", lineHoverWidth + "px")
+          .style("opacity", hoverOpacity);
       })
       .on("mouseout", function(d: any) {
+        const category = d.data.category.replace(/\s+/g, '-');
+        
+        // Restaurar slice
         d3.select(this)
           .transition()
           .duration(200)
@@ -320,6 +338,17 @@ class DonutRenderer {
           .style("opacity", 1)
           .style("stroke", "#fff")
           .style("stroke-width", "2px");
+        
+        // Restaurar línea
+        const lineColor = g.select(`.line-${category}`).attr("data-original-color");
+        const lineWidth = g.select(`.line-${category}`).attr("data-original-width");
+        
+        g.selectAll(`.line-${category}`)
+          .transition()
+          .duration(200)
+          .style("stroke", lineColor)
+          .style("stroke-width", lineWidth)
+          .style("opacity", 1);
       })
       .on("click", onSliceClick ? function(d: any) {
         // Pasar tanto los datos como el evento del mouse
@@ -374,12 +403,18 @@ class DonutRenderer {
         
         g.append("path")
           .attr("d", pathData)
+          .attr("class", `line-${d.data.category.replace(/\s+/g, '-')}`)
+          .attr("data-original-color", lineColor)
+          .attr("data-original-width", lineWidth)
           .attr("stroke", lineColor)
           .attr("stroke-width", lineWidth)
           .attr("fill", "none");
       } else {
         // Línea recta (comportamiento original)
         g.append("line")
+          .attr("class", `line-${d.data.category.replace(/\s+/g, '-')}`)
+          .attr("data-original-color", lineColor)
+          .attr("data-original-width", lineWidth)
           .attr("stroke", lineColor)
           .attr("stroke-width", lineWidth)
           .attr("x1", x1)
@@ -2137,7 +2172,9 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       color: hoverCard.color.value.value || "#FFD700",
       opacity: (hoverCard.opacity.value || 80) / 100,
       borderColor: hoverCard.borderColor.value.value || "#333333",
-      borderWidth: hoverCard.borderWidth.value || 2
+      borderWidth: hoverCard.borderWidth.value || 2,
+      lineColor: hoverCard.lineColor.value.value || "#333333",
+      lineWidth: hoverCard.lineWidth.value || 2
     };
   }
 

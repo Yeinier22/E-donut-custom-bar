@@ -284,6 +284,22 @@ class HoverStyleCardSettings extends FormattingSettingsCard {
     value: 0,
   });
 
+  lineColor = new formattingSettings.ColorPicker({
+    name: "lineColor",
+    displayName: "Line Color",
+    value: { value: "#333333" },
+  });
+
+  lineWidth = new formattingSettings.NumUpDown({
+    name: "lineWidth",
+    displayName: "Line Width (px)",
+    value: 2,
+    options: {
+      minValue: { value: 0.5, type: powerbi.visuals.ValidatorType.Min },
+      maxValue: { value: 10, type: powerbi.visuals.ValidatorType.Max },
+    },
+  });
+
   name: string = "hoverStyle";
   displayName: string = "Hover Style";
   slices: Array<FormattingSettingsSlice> = [
@@ -296,6 +312,8 @@ class HoverStyleCardSettings extends FormattingSettingsCard {
     this.easing,
     this.borderColor,
     this.borderWidth,
+    this.lineColor,
+    this.lineWidth,
     this.expandX,
     this.expandY,
   ];

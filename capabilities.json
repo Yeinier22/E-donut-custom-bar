@@ -150,6 +150,22 @@
             "numeric": true
           }
         },
+        "lineColor": {
+          "displayName": "Line Color",
+          "type": {
+            "fill": {
+              "solid": {
+                "color": true
+              }
+            }
+          }
+        },
+        "lineWidth": {
+          "displayName": "Line Width (px)",
+          "type": {
+            "numeric": true
+          }
+        },
         "expandX": {
           "displayName": "Horizontal Overshoot (px)",
           "description": "Extra width on both sides of the highlighted band",
