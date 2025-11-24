@@ -77,6 +77,7 @@ interface RenderConfig {
   wrap: TextWrapMode;
   spacing: SpacingConfig;
   dataLabels: DataLabelsConfig;
+  lineStyle: string;
 }
 
 interface DataLabelsConfig {
@@ -106,7 +107,7 @@ class DonutRenderer {
   }
 
   public render(viewModel: DonutDataPoint[], config: RenderConfig, onSliceClick?: (category: string, event?: MouseEvent) => void, onBackClick?: () => void, isDrilled?: boolean, drillCategory?: string, showDrillHeader?: boolean, colorMap?: Map<string, string>): void {
-    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels } = config;
+    const { radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, width, height, wrap, spacing, dataLabels, lineStyle } = config;
     
     // Limpiar SVG
     this.svg.selectAll("*").remove();
@@ -145,7 +146,7 @@ class DonutRenderer {
     // Solo renderizar líneas y labels si dataLabels están habilitados y en posición outside
     const isOutside = dataLabels.labelPlacement === "outside";
     if (dataLabels.show && isOutside) {
-      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, spacing);
+      this.renderLines(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, spacing, lineStyle);
       this.renderLabels(g, viewModel, pie, radius, lineLengthConfig, lineAngleConfig, verticalPositionConfig, wrap, dataLabels, spacing);
     } else if (dataLabels.show && !isOutside) {
       // Renderizar labels inside sin líneas
@@ -284,7 +285,8 @@ class DonutRenderer {
                      radius: number, 
                      lineLengthConfig: LineLengthConfig,
                      lineAngleConfig: LineAngleConfig,
-                     spacing: SpacingConfig): void {
+                     spacing: SpacingConfig,
+                     lineStyle: string = "straight"): void {
     const pieData = pie(viewModel);
     
     pieData.forEach((d: d3.PieArcDatum<any>) => {
@@ -298,13 +300,41 @@ class DonutRenderer {
       const x1 = Math.cos(baseAngle) * helpers.outerRadius;
       const y1 = Math.sin(baseAngle) * helpers.outerRadius;
       
-      g.append("line")
-        .attr("stroke", "#888")
-        .attr("stroke-width", 1)
-        .attr("x1", x1)
-        .attr("y1", y1)
-        .attr("x2", textX)
-        .attr("y2", textY);
+      if (lineStyle === "curved") {
+        // Línea curva usando path con curva cuadrática
+        // Calcular punto de control perpendicular a la línea para crear una curva pronunciada
+        const midPointX = (x1 + textX) / 2;
+        const midPointY = (y1 + textY) / 2;
+        
+        // Vector perpendicular para desplazar el punto de control
+        const dx = textX - x1;
+        const dy = textY - y1;
+        const perpX = -dy;
+        const perpY = dx;
+        const perpLength = Math.sqrt(perpX * perpX + perpY * perpY);
+        
+        // Desplazar el punto de control perpendicular a la línea (hacia afuera)
+        const curveFactor = lineLength * 0.4; // Factor de curvatura
+        const controlX = midPointX + (perpX / perpLength) * curveFactor;
+        const controlY = midPointY + (perpY / perpLength) * curveFactor;
+        
+        const pathData = `M ${x1},${y1} Q ${controlX},${controlY} ${textX},${textY}`;
+        
+        g.append("path")
+          .attr("d", pathData)
+          .attr("stroke", "#888")
+          .attr("stroke-width", 1)
+          .attr("fill", "none");
+      } else {
+        // Línea recta (comportamiento original)
+        g.append("line")
+          .attr("stroke", "#888")
+          .attr("stroke-width", 1)
+          .attr("x1", x1)
+          .attr("y1", y1)
+          .attr("x2", textX)
+          .attr("y2", textY);
+      }
     });
   }
 
@@ -1384,6 +1414,7 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const verticalPositionConfig = this.getVerticalPositionConfig(dataView, viewModel, this.isDrilled);
     
     const dataLabelsConfig = this.getDataLabelsConfig(dataView, this.isDrilled);
+    const lineStyle = this.getLineStyle(dataView, this.isDrilled);
     
     const config: RenderConfig = {
       radius,
@@ -1394,7 +1425,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       height: options.viewport.height,
       wrap: DONUT_CONFIG.DEFAULT_WRAP,
       spacing: spacingConfig,
-      dataLabels: dataLabelsConfig
+      dataLabels: dataLabelsConfig,
+      lineStyle
     };
 
     // Save base state if not drilled (like ECharts version)
@@ -2000,6 +2032,11 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       valueType: String(isDrilled ? drillCard.valueType.value.value : dataLabelsCard.valueType.value.value),
       textSpacing: this.formattingSettings.labelTuningCard.textSpacing.value
     };
+  }
+
+  private getLineStyle(dataView: powerbi.DataView, isDrilled: boolean): string {
+    const tuningCard = isDrilled ? this.formattingSettings.labelTuningDrillCard : this.formattingSettings.labelTuningCard;
+    return String(tuningCard.lineStyle.value.value);
   }
 
 

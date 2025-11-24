@@ -387,6 +387,17 @@ class LegendCardSettings extends FormattingSettingsCard {
  * Label Tuning Formatting Card
  */
 class LabelTuningCardSettings extends FormattingSettingsCard {
+  // Line Style (Straight or Curved)
+  lineStyle = new formattingSettings.ItemDropdown({
+    name: "lineStyle",
+    displayName: "Line Style",
+    items: [
+      { displayName: "Straight", value: "straight" },
+      { displayName: "Curved", value: "curved" },
+    ],
+    value: { displayName: "Straight", value: "straight" },
+  });
+
   lineLengthMode = new formattingSettings.ItemDropdown({
     name: "lineLengthMode",
     displayName: "Line Length Mode",
@@ -635,6 +646,7 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
   name: string = "labelTuning";
   displayName: string = "Label & Line Tuning";
   slices: Array<FormattingSettingsSlice> = [
+    this.lineStyle,
     this.lineLengthMode,
     this.lineLength,
     this.lineLength_0,
@@ -681,6 +693,17 @@ class LabelTuningCardSettings extends FormattingSettingsCard {
  * Nota: Solo UI. No modifica capabilities.
  */
 class LabelTuningDrillCardSettings extends FormattingSettingsCard {
+  // Line Style (Straight or Curved)
+  lineStyle = new formattingSettings.ItemDropdown({
+    name: "lineStyle",
+    displayName: "Line Style",
+    items: [
+      { displayName: "Straight", value: "straight" },
+      { displayName: "Curved", value: "curved" },
+    ],
+    value: { displayName: "Straight", value: "straight" },
+  });
+
   lineLengthMode = new formattingSettings.ItemDropdown({
     name: "lineLengthMode",
     displayName: "Line Length Mode",
@@ -930,6 +953,7 @@ class LabelTuningDrillCardSettings extends FormattingSettingsCard {
   name: string = "labelTuningDrill";
   displayName: string = "Label & Line Tuning (Drill)";
   slices: Array<FormattingSettingsSlice> = [
+    this.lineStyle,
     this.lineLengthMode,
     this.lineLength,
     this.lineLength_0,

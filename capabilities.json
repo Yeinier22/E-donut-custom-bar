@@ -755,6 +755,15 @@
     "labelTuning": {
       "displayName": "Label & Line Tuning",
       "properties": {
+        "lineStyle": {
+          "displayName": "Line Style",
+          "type": {
+            "enumeration": [
+              { "displayName": "Straight", "value": "straight" },
+              { "displayName": "Curved", "value": "curved" }
+            ]
+          }
+        },
         "lineLengthMode": {
           "displayName": "Line Length Mode",
           "type": {
@@ -848,6 +857,15 @@
     },
     "labelTuningDrill": {
       "properties": {
+        "lineStyle": {
+          "displayName": "Line Style",
+          "type": {
+            "enumeration": [
+              { "displayName": "Straight", "value": "straight" },
+              { "displayName": "Curved", "value": "curved" }
+            ]
+          }
+        },
         "lineLengthMode": {
           "displayName": "Line Length Mode",
           "type": {
