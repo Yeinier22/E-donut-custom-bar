@@ -1669,16 +1669,50 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     const categoryValues = categories.values;
     const categoryObjects = categories.objects;
     
-    if (categoryObjects) {
-      for (let i = 0; i < categoryValues.length; i++) {
-        const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
-        if (categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
-          const colorObj = categoryObjects[i][objectName]["fill"] as any;
-          colorMap.set(categoryName, colorObj.solid.color);
+    console.log("🎨 getColorMap - isDrill:", isDrill, "objectName:", objectName);
+    console.log("🎨 categoryValues:", categoryValues);
+    console.log("🎨 categoryObjects:", categoryObjects);
+    
+    // Obtener colores del dataView.metadata.objects si existen
+    const metadata = dataView.metadata;
+    console.log("🎨 metadata.objects:", metadata?.objects);
+    
+    for (let i = 0; i < categoryValues.length; i++) {
+      const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
+      let color: string | null = null;
+      
+      // Primero intentar obtener el color de categoryObjects[i]
+      if (categoryObjects && categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
+        const colorObj = categoryObjects[i][objectName]["fill"] as any;
+        color = colorObj.solid.color;
+        console.log(`✅ Color from categoryObjects for "${categoryName}":`, color);
+      }
+      
+      // Si no hay color, intentar obtenerlo usando getColorByIndex del host
+      if (!color) {
+        const defaultColor = this.host.colorPalette.getColor(categoryName).value;
+        color = defaultColor;
+        console.log(`🔵 Default color for "${categoryName}":`, color);
+      }
+      
+      // Ahora verificar si hay un color personalizado en metadata.objects
+      if (metadata && metadata.objects) {
+        const dataPointObj = metadata.objects[objectName] as any;
+        if (dataPointObj && dataPointObj[categoryName]) {
+          const customColor = dataPointObj[categoryName];
+          if (customColor && customColor.solid) {
+            color = customColor.solid.color;
+            console.log(`✨ Custom color from metadata for "${categoryName}":`, color);
+          }
         }
+      }
+      
+      if (color) {
+        colorMap.set(categoryName, color);
       }
     }
     
+    console.log("🎨 Final colorMap:", colorMap);
     return colorMap;
   }
 
