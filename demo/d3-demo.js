@@ -21,6 +21,12 @@ let baseCategories = [];
 let currentCategories = [];
 let currentDataView = null;
 
+// Simular categoryObjects para almacenar colores personalizados
+let customColors = {
+  base: {}, // { categoryIndex: color }
+  drill: {}  // { categoryIndex: color }
+};
+
 // Logging
 function log(message, data = null) {
   console.log(message, data);
@@ -113,10 +119,15 @@ function testGenerateAllCategoryNames(dataView) {
 const sampleDataSingle = {
   categorical: {
     categories: [
-      { values: ['Sales', 'Marketing', 'Support', 'Development'] }
+      { 
+        values: ['Low Income', 'Low Income', 'Low Income', 'Low Income', 'Low Income', 'Low Income',
+                 'Middle Income', 'Middle Income', 'Middle Income', 'Middle Income',
+                 'High Income', 'High Income', 'High Income'],
+        objects: []
+      }
     ],
     values: [
-      { values: [150, 80, 60, 200] }
+      { values: [100, 150, 80, 120, 50, 70, 200, 180, 160, 140, 300, 250, 280] }
     ]
   }
 };
@@ -124,11 +135,21 @@ const sampleDataSingle = {
 const sampleDataDouble = {
   categorical: {
     categories: [
-      { values: ['Sales', 'Sales', 'Marketing', 'Marketing', 'Support', 'Support', 'Development', 'Development'] },
-      { values: ['Q1', 'Q2', 'Q1', 'Q2', 'Q1', 'Q2', 'Q1', 'Q2'] }
+      { 
+        values: ['Low Income', 'Low Income', 'Low Income', 'Low Income', 'Low Income', 'Low Income',
+                 'Middle Income', 'Middle Income', 'Middle Income',
+                 'High Income', 'High Income'],
+        objects: [] // Se llenará dinámicamente cuando se cambien colores
+      },
+      { 
+        values: ['Asia', 'Europe', 'Africa', 'Americas', 'Oceania', 'Other',
+                 'Asia', 'Europe', 'Americas',
+                 'Asia', 'Europe'],
+        objects: [] // Se llenará dinámicamente
+      }
     ],
     values: [
-      { values: [80, 70, 40, 40, 30, 30, 100, 100] }
+      { values: [100, 150, 80, 120, 50, 70, 200, 180, 160, 300, 250] }
     ]
   }
 };
@@ -323,28 +344,35 @@ class DonutRenderer {
     const arc = d3.arc()
       .innerRadius(innerRadius)
       .outerRadius(outerRadius);
-    const color = d3.scaleOrdinal(d3.schemeSet2);
 
-    // Render components
-    this.renderDonut(g, viewModel, pie, arc, color, onSliceClick);
+    // Render components - pass isDrilled para usar colores correctos
+    this.renderDonut(g, viewModel, pie, arc, onSliceClick, isDrilled);
     this.renderLines(g, viewModel, pie, outerRadius);
     this.renderLabels(g, viewModel, pie, outerRadius);
   }
 
-  renderDonut(g, viewModel, pie, arc, color, onSliceClick) {
+  renderDonut(g, viewModel, pie, arc, onSliceClick, isDrilled) {
+    const defaultColors = ["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3"];
+    
     log('Rendering donut arcs with click handler:', !!onSliceClick);
+    log('Using colors for isDrilled:', isDrilled);
     
     g.selectAll("path")
       .data(pie(viewModel))
       .enter()
       .append("path")
       .attr("d", arc)
-      .attr("fill", d => color(d.data.category))
+      .attr("fill", (d, i) => {
+        const colorSource = isDrilled ? customColors.drill : customColors.base;
+        const customColor = getCategoryColor(d.data.category, isDrilled);
+        const finalColor = customColor || defaultColors[i % defaultColors.length];
+        log(`Slice ${i} (${d.data.category}): custom=${customColor}, final=${finalColor}`);
+        return finalColor;
+      })
       .style("stroke", "#fff")
       .style("stroke-width", "2px")
       .style("cursor", onSliceClick ? "pointer" : "default")
       .on("click", onSliceClick ? function(d) {
-        // En D3 v5, 'd' es el primer parámetro y 'this' contiene el elemento
         log('D3 click event fired:', d.data.category);
         onSliceClick(d.data.category);
       } : null);
@@ -571,6 +599,7 @@ function updateChart() {
   renderer.render(viewModel, config, onSliceClick, onBackClick, isDrilled, drillCategory);
   
   updateStatus();
+  updateColorPickers(); // Actualizar color pickers después de renderizar
 }
 
 // Initialize
@@ -609,6 +638,182 @@ function resetDrill() {
   drillCategoryKey = null;
   currentCategories = [...baseCategories];
   updateStatus();
+  updateChart();
+}
+
+// ===== FUNCIONES PARA DATA COLORS =====
+
+function getCategoryColor(category, isDrill) {
+  log(`getCategoryColor(${category}, isDrill=${isDrill})`);
+  
+  if (!currentDataView || !currentDataView.categorical || !currentDataView.categorical.categories) {
+    log('  -> No dataView');
+    return null;
+  }
+  
+  const categoryIndex = isDrill ? 1 : 0;
+  const objectName = isDrill ? "dataPointDrill" : "dataPoint";
+  const categories = currentDataView.categorical.categories[categoryIndex];
+  
+  if (!categories) {
+    log('  -> No categories at index', categoryIndex);
+    return null;
+  }
+  
+  const categoryValues = categories.values;
+  const categoryObjects = categories.objects;
+  
+  log(`  -> categoryValues:`, categoryValues);
+  log(`  -> categoryObjects:`, categoryObjects);
+  
+  if (!categoryObjects || categoryObjects.length === 0) {
+    log('  -> No categoryObjects');
+    return null;
+  }
+  
+  for (let i = 0; i < categoryValues.length; i++) {
+    const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
+    if (categoryName === category) {
+      log(`  -> Found match at index ${i}`);
+      if (categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
+        const colorObj = categoryObjects[i][objectName]["fill"];
+        log(`  -> Has color object:`, colorObj);
+        return colorObj.solid.color;
+      } else {
+        log(`  -> No color at index ${i}`);
+      }
+    }
+  }
+  
+  log('  -> No color found');
+  return null;
+}
+
+function updateColorPickers() {
+  log('=== UPDATING COLOR PICKERS ===');
+  
+  // Color pickers para categoría base
+  const baseDiv = document.getElementById('color-pickers-base');
+  baseDiv.innerHTML = '';
+  
+  if (baseCategories && baseCategories.length > 0) {
+    const cat1Values = currentDataView.categorical.categories[0].values;
+    log('Base categories:', baseCategories);
+    log('cat1Values:', cat1Values);
+    
+    baseCategories.forEach((category, uniqueIndex) => {
+      // AQUÍ ESTÁ LA LÓGICA ACTUAL DEL VISUAL
+      const actualIndex = cat1Values.indexOf(category);
+      
+      log(`Category "${category}": uniqueIndex=${uniqueIndex}, actualIndex=${actualIndex}`);
+      
+      const defaultColors = ["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3"];
+      const defaultColor = defaultColors[uniqueIndex % defaultColors.length];
+      const currentColor = getCategoryColor(category, false) || defaultColor;
+      
+      const pickerDiv = document.createElement('div');
+      pickerDiv.style.margin = '4px 0';
+      pickerDiv.innerHTML = `
+        <label style="font-size: 11px;">
+          ${category}:
+          <input type="color" 
+                 value="${currentColor}" 
+                 data-category="${category}" 
+                 data-index="${actualIndex}"
+                 data-drill="false"
+                 onchange="onColorChange(this)">
+          <span style="font-size: 10px; color: #666;">(idx: ${actualIndex})</span>
+        </label>
+      `;
+      baseDiv.appendChild(pickerDiv);
+    });
+  }
+  
+  // Color pickers para drill
+  const drillDiv = document.getElementById('color-pickers-drill');
+  drillDiv.innerHTML = '';
+  
+  if (currentDataView.categorical.categories.length > 1) {
+    const cat2Values = currentDataView.categorical.categories[1].values;
+    const uniqueDrillCategories = [];
+    const seen = new Set();
+    
+    for (const cat of cat2Values) {
+      if (!seen.has(cat)) {
+        seen.add(cat);
+        uniqueDrillCategories.push(cat);
+      }
+    }
+    
+    log('Unique drill categories:', uniqueDrillCategories);
+    log('cat2Values:', cat2Values);
+    
+    uniqueDrillCategories.forEach((category, uniqueIndex) => {
+      const categoryName = category == null ? "(Blank)" : String(category);
+      const actualIndex = cat2Values.indexOf(category);
+      
+      log(`Drill category "${categoryName}": uniqueIndex=${uniqueIndex}, actualIndex=${actualIndex}`);
+      
+      const defaultColors = ["#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3", "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3"];
+      const defaultColor = defaultColors[uniqueIndex % defaultColors.length];
+      const currentColor = getCategoryColor(categoryName, true) || defaultColor;
+      
+      const pickerDiv = document.createElement('div');
+      pickerDiv.style.margin = '4px 0';
+      pickerDiv.innerHTML = `
+        <label style="font-size: 11px;">
+          ${categoryName}:
+          <input type="color" 
+                 value="${currentColor}" 
+                 data-category="${categoryName}" 
+                 data-index="${actualIndex}"
+                 data-drill="true"
+                 onchange="onColorChange(this)">
+          <span style="font-size: 10px; color: #666;">(idx: ${actualIndex})</span>
+        </label>
+      `;
+      drillDiv.appendChild(pickerDiv);
+    });
+  }
+}
+
+function onColorChange(input) {
+  const category = input.dataset.category;
+  const index = parseInt(input.dataset.index);
+  const isDrill = input.dataset.drill === 'true';
+  const color = input.value;
+  
+  log(`Color changed: category=${category}, index=${index}, isDrill=${isDrill}, color=${color}`);
+  
+  // Simular cómo Power BI guarda el color en categoryObjects
+  const categoryIndex = isDrill ? 1 : 0;
+  const objectName = isDrill ? "dataPointDrill" : "dataPoint";
+  const categories = currentDataView.categorical.categories[categoryIndex];
+  
+  // Inicializar objects array si no existe
+  if (!categories.objects) {
+    categories.objects = [];
+  }
+  
+  // Rellenar con nulls hasta el índice necesario
+  while (categories.objects.length <= index) {
+    categories.objects.push(null);
+  }
+  
+  // Guardar el color en el índice específico
+  categories.objects[index] = {
+    [objectName]: {
+      fill: {
+        solid: {
+          color: color
+        }
+      }
+    }
+  };
+  
+  log('categoryObjects after change:', categories.objects);
+  
+  // Re-renderizar
   updateChart();
 }
 

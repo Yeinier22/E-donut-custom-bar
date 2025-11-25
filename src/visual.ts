@@ -1673,42 +1673,16 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     console.log("🎨 categoryValues:", categoryValues);
     console.log("🎨 categoryObjects:", categoryObjects);
     
-    // Obtener colores del dataView.metadata.objects si existen
-    const metadata = dataView.metadata;
-    console.log("🎨 metadata.objects:", metadata?.objects);
-    
-    for (let i = 0; i < categoryValues.length; i++) {
-      const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
-      let color: string | null = null;
-      
-      // Primero intentar obtener el color de categoryObjects[i]
-      if (categoryObjects && categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
-        const colorObj = categoryObjects[i][objectName]["fill"] as any;
-        color = colorObj.solid.color;
-        console.log(`✅ Color from categoryObjects for "${categoryName}":`, color);
-      }
-      
-      // Si no hay color, intentar obtenerlo usando getColorByIndex del host
-      if (!color) {
-        const defaultColor = this.host.colorPalette.getColor(categoryName).value;
-        color = defaultColor;
-        console.log(`🔵 Default color for "${categoryName}":`, color);
-      }
-      
-      // Ahora verificar si hay un color personalizado en metadata.objects
-      if (metadata && metadata.objects) {
-        const dataPointObj = metadata.objects[objectName] as any;
-        if (dataPointObj && dataPointObj[categoryName]) {
-          const customColor = dataPointObj[categoryName];
-          if (customColor && customColor.solid) {
-            color = customColor.solid.color;
-            console.log(`✨ Custom color from metadata for "${categoryName}":`, color);
-          }
+    if (categoryObjects) {
+      for (let i = 0; i < categoryValues.length; i++) {
+        const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
+        
+        if (categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
+          const colorObj = categoryObjects[i][objectName]["fill"] as any;
+          const color = colorObj.solid.color;
+          console.log(`✅ Color found at index ${i} for "${categoryName}":`, color);
+          colorMap.set(categoryName, color);
         }
-      }
-      
-      if (color) {
-        colorMap.set(categoryName, color);
       }
     }
     
@@ -2361,21 +2335,43 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     // Populate data colors dynamically for main categories
     this.formattingSettings.dataPointCard.slices = [];
     if (this.baseCategories && this.baseCategories.length > 0) {
-      this.baseCategories.forEach((category, index) => {
-        const defaultColor = this.getDefaultColorForCategory(index);
+      const cat1Values = this.dataView.categorical.categories[0].values;
+      
+      console.log("🔧 ===== CREATING COLOR PICKERS FOR BASE CATEGORIES =====");
+      console.log("🔧 baseCategories:", this.baseCategories);
+      console.log("🔧 baseCategories types:", this.baseCategories.map(c => typeof c));
+      console.log("🔧 cat1Values:", cat1Values);
+      console.log("🔧 cat1Values types:", Array.from(new Set(cat1Values.map(c => typeof c))));
+      
+      this.baseCategories.forEach((category, uniqueIndex) => {
+        const defaultColor = this.getDefaultColorForCategory(uniqueIndex);
         const colorValue = this.getCategoryColor(category, false) || defaultColor;
+        
+        // Find the actual index in cat1Values for this category (first occurrence)
+        const actualIndex = cat1Values.indexOf(category);
+        
+        // También buscar con String() para debug
+        const categoryStr = String(category);
+        const actualIndexStr = cat1Values.findIndex(c => String(c) === categoryStr);
+        
+        console.log(`🔧 Category: "${category}" (type: ${typeof category})`);
+        console.log(`   - uniqueIndex: ${uniqueIndex}`);
+        console.log(`   - actualIndex (indexOf): ${actualIndex}`);
+        console.log(`   - actualIndexStr (findIndex+String): ${actualIndexStr}`);
+        console.log(`   - colorValue: ${colorValue}`);
         
         const colorPicker = new formattingSettings.ColorPicker({
           name: "fill",
           displayName: String(category),
           value: { value: colorValue },
           selector: this.host.createSelectionIdBuilder()
-            .withCategory(this.dataView.categorical.categories[0], index)
+            .withCategory(this.dataView.categorical.categories[0], actualIndex)
             .createSelectionId()
             .getSelector()
         });
         this.formattingSettings.dataPointCard.slices.push(colorPicker);
       });
+      console.log("🔧 ===== FINISHED CREATING COLOR PICKERS =====");
     }
     
     // Populate data colors dynamically for drill categories
@@ -2439,7 +2435,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
     if (!categoryObjects) return null;
     
     for (let i = 0; i < categoryValues.length; i++) {
-      if (categoryValues[i] === category && categoryObjects[i]) {
+      const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
+      if (categoryName === category && categoryObjects[i]) {
         const obj = categoryObjects[i];
         if (obj && obj[objectName] && obj[objectName]["fill"]) {
           return (obj[objectName]["fill"] as any).solid.color;
