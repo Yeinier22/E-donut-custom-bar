@@ -4,7 +4,7 @@
     "displayName": "Donut Drilldown (Pure D3)",
     "guid": "donutvisual8B4D03889C6049ABB8DA61CBEDB1D29E",
     "visualClassName": "Visual",
-    "version": "2.0.4.0",
+    "version": "2.0.7.0",
     "description": "Pure D3 donut chart with polylines and individual line length control, identical to example implementation.",
     "supportUrl": "https://github.com/Yeinier22",
     "gitHubUrl": ""
@@ -22,5 +22,5 @@
   "capabilities": "capabilities.json",
   "dependencies": null,
   "stringResources": [],
-  "version": "2.0.4.0"
+  "version": "2.0.7.0"
 }

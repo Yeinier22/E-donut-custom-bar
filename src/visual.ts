@@ -1677,7 +1677,8 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       for (let i = 0; i < categoryValues.length; i++) {
         const categoryName = categoryValues[i] == null ? "(Blank)" : String(categoryValues[i]);
         
-        if (categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
+        // Solo agregar si NO existe ya en el mapa (primer color encontrado gana)
+        if (!colorMap.has(categoryName) && categoryObjects[i] && categoryObjects[i][objectName] && categoryObjects[i][objectName]["fill"]) {
           const colorObj = categoryObjects[i][objectName]["fill"] as any;
           const color = colorObj.solid.color;
           console.log(`✅ Color found at index ${i} for "${categoryName}":`, color);
@@ -2339,30 +2340,23 @@ export class Visual implements powerbi.extensibility.visual.IVisual {
       
       console.log("🔧 ===== CREATING COLOR PICKERS FOR BASE CATEGORIES =====");
       console.log("🔧 baseCategories:", this.baseCategories);
-      console.log("🔧 baseCategories types:", this.baseCategories.map(c => typeof c));
       console.log("🔧 cat1Values:", cat1Values);
-      console.log("🔧 cat1Values types:", Array.from(new Set(cat1Values.map(c => typeof c))));
       
       this.baseCategories.forEach((category, uniqueIndex) => {
+        const categoryName = category == null ? "(Blank)" : String(category);
         const defaultColor = this.getDefaultColorForCategory(uniqueIndex);
-        const colorValue = this.getCategoryColor(category, false) || defaultColor;
+        const colorValue = this.getCategoryColor(categoryName, false) || defaultColor;
         
-        // Find the actual index in cat1Values for this category (first occurrence)
+        // IDÉNTICO AL DRILL: Find the actual index using indexOf on the ORIGINAL category value
         const actualIndex = cat1Values.indexOf(category);
         
-        // También buscar con String() para debug
-        const categoryStr = String(category);
-        const actualIndexStr = cat1Values.findIndex(c => String(c) === categoryStr);
-        
-        console.log(`🔧 Category: "${category}" (type: ${typeof category})`);
-        console.log(`   - uniqueIndex: ${uniqueIndex}`);
-        console.log(`   - actualIndex (indexOf): ${actualIndex}`);
-        console.log(`   - actualIndexStr (findIndex+String): ${actualIndexStr}`);
+        console.log(`🔧 Category: "${categoryName}"`);
+        console.log(`   - uniqueIndex: ${uniqueIndex}, actualIndex: ${actualIndex}`);
         console.log(`   - colorValue: ${colorValue}`);
         
         const colorPicker = new formattingSettings.ColorPicker({
           name: "fill",
-          displayName: String(category),
+          displayName: categoryName,
           value: { value: colorValue },
           selector: this.host.createSelectionIdBuilder()
             .withCategory(this.dataView.categorical.categories[0], actualIndex)
